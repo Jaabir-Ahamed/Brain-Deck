@@ -1,0 +1,225 @@
+import type { Subject, Deck, Card, Upload, Suggestion, ActivityItem } from "./types"
+
+const now = new Date()
+const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000)
+
+export const mockSubjects: Subject[] = [
+  {
+    id: "subj-1",
+    name: "Biology",
+    createdAt: twoDaysAgo.toISOString(),
+  },
+  {
+    id: "subj-2",
+    name: "History",
+    createdAt: yesterday.toISOString(),
+  },
+]
+
+export const mockDecks: Deck[] = [
+  {
+    id: "deck-1",
+    name: "Cell Biology",
+    subjectId: "subj-1",
+    createdAt: twoDaysAgo.toISOString(),
+    cardCount: 24,
+    dueToday: 8,
+    lastReviewed: yesterday.toISOString(),
+  },
+  {
+    id: "deck-2",
+    name: "Photosynthesis",
+    subjectId: "subj-1",
+    createdAt: yesterday.toISOString(),
+    cardCount: 18,
+    dueToday: 5,
+    lastReviewed: now.toISOString(),
+  },
+  {
+    id: "deck-3",
+    name: "World War II",
+    subjectId: "subj-2",
+    createdAt: yesterday.toISOString(),
+    cardCount: 32,
+    dueToday: 12,
+    lastReviewed: twoDaysAgo.toISOString(),
+  },
+]
+
+export const mockCards: Card[] = [
+  {
+    id: "card-1",
+    deckId: "deck-1",
+    type: "qa",
+    front: "What is the primary function of mitochondria?",
+    back: "The mitochondria is the powerhouse of the cell, responsible for producing ATP through cellular respiration.",
+    tags: ["organelles", "energy"],
+    createdAt: twoDaysAgo.toISOString(),
+    interval: 1,
+    easeFactor: 2.5,
+    nextReview: now.toISOString(),
+  },
+  {
+    id: "card-2",
+    deckId: "deck-1",
+    type: "cloze",
+    front: "The process of {{photosynthesis}} occurs in the chloroplasts.",
+    back: "photosynthesis",
+    tags: ["photosynthesis"],
+    createdAt: twoDaysAgo.toISOString(),
+    flagged: true,
+  },
+  {
+    id: "card-3",
+    deckId: "deck-1",
+    type: "qa",
+    front: "Describe the structure of a cell membrane.",
+    back: "The cell membrane is a phospholipid bilayer with embedded proteins, controlling what enters and exits the cell.",
+    tags: ["membrane", "structure"],
+    createdAt: yesterday.toISOString(),
+  },
+  {
+    id: "card-4",
+    deckId: "deck-2",
+    type: "qa",
+    front: "What are the two main stages of photosynthesis?",
+    back: "Light-dependent reactions (in thylakoids) and light-independent reactions/Calvin cycle (in stroma).",
+    tags: ["photosynthesis", "stages"],
+    createdAt: yesterday.toISOString(),
+  },
+  {
+    id: "card-5",
+    deckId: "deck-2",
+    type: "cloze",
+    front: "Chlorophyll absorbs light energy, primarily in the {{blue}} and {{red}} wavelengths.",
+    back: "blue and red",
+    tags: ["light", "chlorophyll"],
+    createdAt: yesterday.toISOString(),
+  },
+  {
+    id: "card-6",
+    deckId: "deck-3",
+    type: "qa",
+    front: "In what year did World War II end?",
+    back: "1945",
+    tags: ["dates", "wwii"],
+    createdAt: yesterday.toISOString(),
+  },
+]
+
+export const mockUploads: Upload[] = [
+  {
+    id: "upload-1",
+    fileName: "Biology_Chapter_3.pdf",
+    sizeMB: 4.2,
+    pageCount: 28,
+    status: "done",
+    createdAt: yesterday.toISOString(),
+  },
+]
+
+export const mockSuggestions: Suggestion[] = [
+  {
+    id: "sugg-1",
+    uploadId: "upload-1",
+    subjectId: "subj-1",
+    deckId: null,
+    type: "qa",
+    front: "What is the role of ATP in cellular processes?",
+    back: "ATP (adenosine triphosphate) is the primary energy currency of cells, providing energy for metabolic reactions.",
+    pageRefs: [5, 6],
+    confidence: 0.92,
+    status: "new",
+    createdAt: yesterday.toISOString(),
+  },
+  {
+    id: "sugg-2",
+    uploadId: "upload-1",
+    subjectId: "subj-1",
+    deckId: null,
+    type: "cloze",
+    front: "The {{endoplasmic reticulum}} is involved in protein synthesis and lipid metabolism.",
+    back: "endoplasmic reticulum",
+    pageRefs: [8],
+    confidence: 0.88,
+    status: "new",
+    createdAt: yesterday.toISOString(),
+  },
+  {
+    id: "sugg-3",
+    uploadId: "upload-1",
+    subjectId: "subj-1",
+    deckId: "deck-1",
+    type: "qa",
+    front: "Explain the difference between prokaryotic and eukaryotic cells.",
+    back: "Prokaryotic cells lack a nucleus and organelles (bacteria), while eukaryotic cells have a nucleus and membrane-bound organelles (animals, plants, fungi).",
+    pageRefs: [3, 4],
+    confidence: 0.95,
+    status: "new",
+    createdAt: yesterday.toISOString(),
+  },
+  {
+    id: "sugg-4",
+    uploadId: "upload-1",
+    subjectId: "subj-1",
+    deckId: "deck-1",
+    type: "qa",
+    front: "What is the function of ribosomes?",
+    back: "Ribosomes are the sites of protein synthesis, translating mRNA into polypeptide chains.",
+    pageRefs: [9],
+    confidence: 0.85,
+    status: "new",
+    createdAt: yesterday.toISOString(),
+  },
+  {
+    id: "sugg-5",
+    uploadId: "upload-1",
+    subjectId: "subj-1",
+    deckId: "deck-2",
+    type: "cloze",
+    front: "The {{stroma}} is the fluid-filled space inside the chloroplast.",
+    back: "stroma",
+    pageRefs: [15],
+    confidence: 0.9,
+    status: "new",
+    createdAt: yesterday.toISOString(),
+  },
+  {
+    id: "sugg-6",
+    uploadId: "upload-1",
+    subjectId: "subj-1",
+    deckId: null,
+    type: "qa",
+    front: "What is the purpose of the Golgi apparatus?",
+    back: "The Golgi apparatus modifies, packages, and ships proteins and lipids received from the ER.",
+    pageRefs: [10, 11],
+    confidence: 0.87,
+    status: "new",
+    createdAt: yesterday.toISOString(),
+  },
+]
+
+export const mockActivity: ActivityItem[] = [
+  {
+    id: "act-1",
+    type: "card_accepted",
+    title: "Accepted 3 suggestions",
+    description: "Added to Cell Biology deck",
+    timestamp: yesterday.toISOString(),
+  },
+  {
+    id: "act-2",
+    type: "upload_completed",
+    title: "Upload completed",
+    description: "Biology_Chapter_3.pdf - 42 suggestions generated",
+    timestamp: yesterday.toISOString(),
+  },
+  {
+    id: "act-3",
+    type: "deck_created",
+    title: "Deck created",
+    description: "Photosynthesis",
+    timestamp: twoDaysAgo.toISOString(),
+  },
+]
