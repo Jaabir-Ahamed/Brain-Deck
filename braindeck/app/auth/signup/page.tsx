@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BookOpen } from "lucide-react"
+import { supabaseBrowser } from "@/lib/supabase"
 
 export default function SignUpPage() {
   const router = useRouter()
@@ -26,12 +27,42 @@ export default function SignUpPage() {
       return
     }
 
-    setLoading(true)
-    await new Promise((resolve) => setTimeout(resolve, 500))
+    if (password.length < 6) {
+      toast.error("Password must be at least 6 characters")
+      return
+    }
 
-    toast.success("Account created successfully (mock)")
-    router.push("/")
-    setLoading(false)
+    setLoading(true)
+
+    try {
+      const { data, error } = await supabaseBrowser().auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            display_name: name,
+          },
+        },
+      })
+
+      if (error) throw error
+
+      // Update profile with display name
+      if (data.user) {
+        await supabaseBrowser()
+          .from("profiles")
+          .update({ display_name: name })
+          .eq("id", data.user.id)
+      }
+
+      toast.success("Account created successfully")
+      router.push("/")
+      router.refresh()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to create account")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

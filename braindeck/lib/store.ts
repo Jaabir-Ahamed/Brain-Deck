@@ -24,8 +24,10 @@ interface AppStore {
   toggleCardFlag: (id: string) => void
 
   // Upload actions
-  addUpload: (upload: Omit<Upload, "id" | "createdAt">) => void
+  addUpload: (upload: Omit<Upload, "id" | "created_at"> | Upload) => void
   updateUploadStatus: (id: string, status: Upload["status"]) => void
+  deleteUpload: (id: string) => void
+  setUploads: (uploads: Upload[]) => void
 
   // Suggestion actions
   acceptSuggestion: (id: string, deckId: string) => void
@@ -114,20 +116,42 @@ export const useAppStore = create<AppStore>((set) => ({
     })),
 
   addUpload: (upload) =>
-    set((state) => ({
-      uploads: [
-        ...state.uploads,
-        {
-          ...upload,
-          id: `upload-${Date.now()}`,
-          createdAt: new Date().toISOString(),
-        },
-      ],
-    })),
+    set((state) => {
+      // If upload already has an id and created_at, use it; otherwise generate them
+      const uploadWithId: Upload = upload.id && upload.created_at
+        ? upload as Upload
+        : {
+            ...upload,
+            id: upload.id || `upload-${Date.now()}`,
+            created_at: upload.created_at || new Date().toISOString(),
+          } as Upload
+      
+      // Check if upload already exists (avoid duplicates)
+      const exists = state.uploads.some(u => u.id === uploadWithId.id)
+      if (exists) {
+        return {
+          uploads: state.uploads.map(u => u.id === uploadWithId.id ? uploadWithId : u),
+        }
+      }
+      
+      return {
+        uploads: [...state.uploads, uploadWithId],
+      }
+    }),
 
   updateUploadStatus: (id, status) =>
     set((state) => ({
       uploads: state.uploads.map((u) => (u.id === id ? { ...u, status } : u)),
+    })),
+
+  deleteUpload: (id) =>
+    set((state) => ({
+      uploads: state.uploads.filter((u) => u.id !== id),
+    })),
+
+  setUploads: (uploads) =>
+    set(() => ({
+      uploads,
     })),
 
   acceptSuggestion: (id, deckId) =>

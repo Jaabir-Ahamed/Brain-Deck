@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BookOpen } from "lucide-react"
+import { supabaseBrowser } from "@/lib/supabase"
 
 export default function SignInPage() {
   const router = useRouter()
@@ -20,12 +21,22 @@ export default function SignInPage() {
     e.preventDefault()
     setLoading(true)
 
-    // Simulate auth delay
-    await new Promise((resolve) => setTimeout(resolve, 500))
+    try {
+      const { error } = await supabaseBrowser().auth.signInWithPassword({
+        email,
+        password,
+      })
 
-    toast.success("Signed in successfully (mock)")
-    router.push("/")
-    setLoading(false)
+      if (error) throw error
+
+      toast.success("Signed in successfully")
+      router.push("/")
+      router.refresh()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to sign in")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

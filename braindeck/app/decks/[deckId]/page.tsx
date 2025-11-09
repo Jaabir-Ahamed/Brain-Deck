@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Edit2, Trash2, Flag, Plus, BarChart3, AlertCircle } from "lucide-react"
+import { Edit2, Trash2, Flag, Plus, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
 import type { Card as CardType } from "@/lib/types"
 
@@ -124,7 +124,7 @@ export default function DeckDetailPage() {
               {subject && <Badge variant="secondary">{subject.name}</Badge>}
             </div>
             <p className="text-muted-foreground">
-              {deckCards.length} card{deckCards.length !== 1 ? "s" : ""} • {deck.dueToday} due today
+              Manage your flashcards
             </p>
           </div>
         </div>
@@ -133,7 +133,6 @@ export default function DeckDetailPage() {
         <Tabs defaultValue="cards" className="w-full">
           <TabsList>
             <TabsTrigger value="cards">Cards</TabsTrigger>
-            <TabsTrigger value="stats">Stats</TabsTrigger>
             <TabsTrigger value="flags">Flags</TabsTrigger>
           </TabsList>
 
@@ -167,44 +166,6 @@ export default function DeckDetailPage() {
             ) : (
               <DataTable data={deckCards} columns={columns} searchKey="front" />
             )}
-          </TabsContent>
-
-          <TabsContent value="stats" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Cards</p>
-                      <p className="text-3xl font-bold mt-2">{deckCards.length}</p>
-                    </div>
-                    <BarChart3 className="w-5 h-5 text-primary" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Due Today</p>
-                      <p className="text-3xl font-bold mt-2">{deck.dueToday}</p>
-                    </div>
-                    <BarChart3 className="w-5 h-5 text-blue-500" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Flagged</p>
-                      <p className="text-3xl font-bold mt-2">{flaggedCards.length}</p>
-                    </div>
-                    <BarChart3 className="w-5 h-5 text-yellow-500" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
           </TabsContent>
 
           <TabsContent value="flags" className="space-y-4">

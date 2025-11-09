@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BookOpen, ArrowLeft } from "lucide-react"
+import { supabaseBrowser } from "@/lib/supabase"
 
 export default function ResetPasswordPage() {
   const [email, setEmail] = useState("")
@@ -18,11 +19,20 @@ export default function ResetPasswordPage() {
     e.preventDefault()
     setLoading(true)
 
-    await new Promise((resolve) => setTimeout(resolve, 500))
+    try {
+      const { error } = await supabaseBrowser().auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      })
 
-    toast.success("Password reset email sent (mock)")
-    setSubmitted(true)
-    setLoading(false)
+      if (error) throw error
+
+      toast.success("Password reset email sent")
+      setSubmitted(true)
+    } catch (error: any) {
+      toast.error(error.message || "Failed to send reset email")
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (submitted) {

@@ -18,7 +18,7 @@ import { Trash2, Plus, Layers } from "lucide-react"
 import { toast } from "sonner"
 
 export default function SubjectsPage() {
-  const { subjects, decks, addSubject, deleteSubject } = useAppStore()
+  const { subjects, addSubject, deleteSubject } = useAppStore()
   const [newSubjectName, setNewSubjectName] = useState("")
   const [open, setOpen] = useState(false)
 
@@ -39,14 +39,6 @@ export default function SubjectsPage() {
     toast.success("Subject deleted (mock)")
   }
 
-  const getSubjectStats = (subjectId: string) => {
-    const subjectDecks = decks.filter((d) => d.subjectId === subjectId)
-    const totalCards = subjectDecks.reduce((sum, d) => sum + d.cardCount, 0)
-    return {
-      deckCount: subjectDecks.length,
-      cardCount: totalCards,
-    }
-  }
 
   return (
     <AppShell>
@@ -125,17 +117,12 @@ export default function SubjectsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {subjects.map((subject) => {
-              const stats = getSubjectStats(subject.id)
               return (
                 <Card key={subject.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="pt-6">
                     <div className="flex items-start justify-between mb-4">
                       <div>
                         <h3 className="font-semibold text-lg">{subject.name}</h3>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {stats.deckCount} deck{stats.deckCount !== 1 ? "s" : ""} • {stats.cardCount} card
-                          {stats.cardCount !== 1 ? "s" : ""}
-                        </p>
                       </div>
                       <Button
                         variant="ghost"

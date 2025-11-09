@@ -3,11 +3,13 @@
 import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Home, BookOpen, Layers, Upload, Lightbulb, User, Menu, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { supabaseBrowser } from "@/lib/supabase"
+import { toast } from "sonner"
 
 const sidebarItems = [
   {
@@ -33,6 +35,38 @@ const sidebarItems = [
 
 interface AppShellProps {
   children: React.ReactNode
+}
+
+function SignOutButton() {
+  const router = useRouter()
+  const [isSigningOut, setIsSigningOut] = useState(false)
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true)
+    try {
+      const supabase = supabaseBrowser()
+      await supabase.auth.signOut()
+      toast.success("Signed out successfully")
+      router.push("/auth/signin")
+    } catch (error: any) {
+      console.error("Error signing out:", error)
+      toast.error("Failed to sign out")
+    } finally {
+      setIsSigningOut(false)
+    }
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      className="w-full justify-start gap-3 text-destructive hover:text-destructive"
+      onClick={handleSignOut}
+      disabled={isSigningOut}
+    >
+      <LogOut className="w-4 h-4" />
+      {isSigningOut ? "Signing out..." : "Sign Out"}
+    </Button>
+  )
 }
 
 export function AppShell({ children }: AppShellProps) {
@@ -84,10 +118,7 @@ export function AppShell({ children }: AppShellProps) {
 
       <div className="p-4 border-t border-border space-y-2">
         <ThemeToggle />
-        <Button variant="ghost" className="w-full justify-start gap-3 text-destructive hover:text-destructive">
-          <LogOut className="w-4 h-4" />
-          Sign Out
-        </Button>
+        <SignOutButton />
       </div>
     </div>
   )

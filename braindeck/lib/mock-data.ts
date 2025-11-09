@@ -111,11 +111,14 @@ export const mockCards: Card[] = [
 export const mockUploads: Upload[] = [
   {
     id: "upload-1",
-    fileName: "Biology_Chapter_3.pdf",
-    sizeMB: 4.2,
-    pageCount: 28,
+    user_id: "user-1",
+    subject_id: null,
+    file_name: "Biology_Chapter_3.pdf",
+    storage_path: "user-1/Biology_Chapter_3.pdf",
+    size_mb: 4.2,
+    page_count: 28,
     status: "done",
-    createdAt: yesterday.toISOString(),
+    created_at: yesterday.toISOString(),
   },
 ]
 
