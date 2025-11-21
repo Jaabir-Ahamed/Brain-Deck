@@ -84,33 +84,29 @@ export const getUserEmailByUsername = async (username: string): Promise<string |
 };
 
 // Check if username is available
+// Uses a database function to bypass RLS policies (needed for signup when user is not authenticated)
 export const isUsernameAvailable = async (username: string, excludeUserId?: string): Promise<boolean> => {
   try {
-    let query = supabase
-      .from('profiles')
-      .select('id')
-      .eq('username', username);
-
-    if (excludeUserId) {
-      query = query.neq('id', excludeUserId);
-    }
-
-    const { data, error } = await query;
+    const { data, error } = await supabase.rpc('is_username_available', {
+      username_param: username,
+      exclude_user_id: excludeUserId || null
+    });
 
     if (error) {
       console.error('Error checking username availability:', error);
       // If it's a connection/auth error, throw it so the UI can show a proper message
-      if (error.code === 'PGRST116' || error.code === '42501' || error.message?.includes('JWT')) {
-        throw new Error('Database connection error. Please check your Supabase configuration.');
+      if (error.code === 'PGRST116' || error.code === '42501' || error.message?.includes('JWT') || error.message?.includes('function')) {
+        throw new Error('Database connection error. Please check your Supabase configuration and ensure the is_username_available function exists.');
       }
       // For other errors, assume username is taken to be safe
       return false;
     }
 
-    return data.length === 0;
+    // The function returns a boolean
+    return data === true;
   } catch (error: any) {
     // Re-throw connection/auth errors
-    if (error.message?.includes('Database connection') || error.message?.includes('Supabase')) {
+    if (error.message?.includes('Database connection') || error.message?.includes('Supabase') || error.message?.includes('function')) {
       throw error;
     }
     console.error('Unexpected error checking username availability:', error);

@@ -36,3 +36,21 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- This is safe as it only returns email, not password or other sensitive data
 GRANT EXECUTE ON FUNCTION public.get_user_email_by_username(TEXT) TO anon;
 
+-- Function to check if username is available (bypasses RLS for signup)
+CREATE OR REPLACE FUNCTION public.is_username_available(username_param TEXT, exclude_user_id UUID DEFAULT NULL)
+RETURNS BOOLEAN AS $$
+DECLARE
+  user_count INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO user_count
+  FROM public.profiles
+  WHERE username = username_param
+    AND (exclude_user_id IS NULL OR id != exclude_user_id);
+  
+  RETURN user_count = 0;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Allow public access to check username availability (needed for signup)
+GRANT EXECUTE ON FUNCTION public.is_username_available(TEXT, UUID) TO anon;
+
