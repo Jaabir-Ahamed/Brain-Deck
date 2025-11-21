@@ -402,3 +402,83 @@ export const updateDeckCardCount = async (deckId: string): Promise<void> => {
     .eq('id', deckId);
 };
 
+// Study session operations
+export interface StudySession {
+  id: string;
+  userId: string;
+  deckId: string;
+  cardsStudied: number;
+  durationSeconds: number;
+  confidenceRating?: number;
+  completed: boolean;
+  startedAt: string;
+  endedAt?: string;
+  createdAt: string;
+}
+
+export const getStudySessions = async (userId: string, limit: number = 7): Promise<StudySession[]> => {
+  const { data, error } = await supabase
+    .from('study_sessions')
+    .select('*')
+    .eq('user_id', userId)
+    .order('started_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching study sessions:', error);
+    return [];
+  }
+
+  return data.map(session => ({
+    id: session.id,
+    userId: session.user_id,
+    deckId: session.deck_id,
+    cardsStudied: session.cards_studied,
+    durationSeconds: session.duration_seconds,
+    confidenceRating: session.confidence_rating,
+    completed: session.completed,
+    startedAt: session.started_at,
+    endedAt: session.ended_at,
+    createdAt: session.created_at,
+  }));
+};
+
+export const getWeeklyActivity = async (userId: string): Promise<{ date: string; cards: number; sessions: number; totalDuration: number }[]> => {
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  const { data, error } = await supabase
+    .from('study_sessions')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('started_at', sevenDaysAgo.toISOString())
+    .order('started_at', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching weekly activity:', error);
+    return [];
+  }
+
+  // Group by date
+  const activityByDate: { [key: string]: { cards: number; sessions: number; totalDuration: number } } = {};
+  
+  data.forEach(session => {
+    const date = new Date(session.started_at).toLocaleDateString('en-US', { weekday: 'short' });
+    if (!activityByDate[date]) {
+      activityByDate[date] = { cards: 0, sessions: 0, totalDuration: 0 };
+    }
+    activityByDate[date].cards += session.cards_studied;
+    activityByDate[date].sessions += 1;
+    activityByDate[date].totalDuration += session.duration_seconds;
+  });
+
+  // Get last 7 days
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  return days.map(day => ({
+    date: day,
+    cards: activityByDate[day]?.cards || 0,
+    sessions: activityByDate[day]?.sessions || 0,
+    totalDuration: activityByDate[day]?.totalDuration || 0,
+  }));
+};
+

@@ -5,7 +5,7 @@ import { generateFlashcardsFromTopic } from './services/geminiService';
 import { calculateSm2, getNextReviewDate, formatInterval } from './utils/srs';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { supabase } from './src/lib/supabase';
-import { getProfile, getDecks, createDeck, updateDeck, deleteDeck, getCardsByUser, createCards, updateCard, updateDeckCardCount, getUserEmailByUsername, isUsernameAvailable, updateProfile } from './src/lib/db';
+import { getProfile, getDecks, createDeck, updateDeck, deleteDeck, getCardsByUser, createCards, updateCard, updateDeckCardCount, getUserEmailByUsername, isUsernameAvailable, updateProfile, getWeeklyActivity } from './src/lib/db';
 import { uploadProfilePicture } from './src/lib/storage';
 
 // --- MOCK DATA REMOVED ---
@@ -477,15 +477,29 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
 // --- PAGE: DASHBOARD ---
 
 const Dashboard: React.FC<{ decks: Deck[], user: User, setPage: (p: string) => void, onStudy: (d: Deck) => void }> = ({ decks, user, setPage, onStudy }) => {
-  const data = [
-    { name: 'Mon', cards: 0 },
-    { name: 'Tue', cards: 0 },
-    { name: 'Wed', cards: 0 },
-    { name: 'Thu', cards: 0 },
-    { name: 'Fri', cards: 0 },
-    { name: 'Sat', cards: 0 },
-    { name: 'Sun', cards: 0 },
-  ];
+  const [activityData, setActivityData] = useState<{ date: string; cards: number; sessions: number; totalDuration: number }[]>([]);
+  const [loadingActivity, setLoadingActivity] = useState(true);
+
+  useEffect(() => {
+    const loadActivity = async () => {
+      try {
+        const activity = await getWeeklyActivity(user.id);
+        setActivityData(activity);
+      } catch (error) {
+        console.error('Error loading activity:', error);
+      } finally {
+        setLoadingActivity(false);
+      }
+    };
+    loadActivity();
+  }, [user.id]);
+
+  const data = activityData.map(day => ({
+    name: day.date,
+    cards: day.cards,
+    sessions: day.sessions,
+    duration: Math.floor(day.totalDuration / 60) // minutes
+  }));
 
   // Sort by last studied or created
   const recentDecks = [...decks].sort((a, b) => new Date(b.lastStudied || b.created).getTime() - new Date(a.lastStudied || a.created).getTime()).slice(0, 3);
@@ -565,24 +579,46 @@ const Dashboard: React.FC<{ decks: Deck[], user: User, setPage: (p: string) => v
 
         {/* Stats Chart */}
         <div className="bg-card border border-border p-6 rounded-xl">
-          <h3 className="text-lg font-semibold mb-6">Activity</h3>
-          <div className="h-48 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data}>
-                <XAxis dataKey="name" stroke="#52525b" fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip 
-                  cursor={{fill: '#27272a'}}
-                  contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
-                />
-                <Bar dataKey="cards" radius={[4, 4, 0, 0]}>
-                  {data.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={'#3f3f46'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <p className="text-center text-sm text-muted-foreground mt-4">Start studying to see your stats!</p>
+          <h3 className="text-lg font-semibold mb-6">Activity (Last 7 Days)</h3>
+          {loadingActivity ? (
+            <div className="h-48 flex items-center justify-center">
+              <Icons.Spinner size={24} className="animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <>
+              <div className="h-48 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data}>
+                    <XAxis dataKey="name" stroke="#52525b" fontSize={12} tickLine={false} axisLine={false} />
+                    <Tooltip 
+                      cursor={{fill: '#27272a'}}
+                      contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
+                      formatter={(value: any) => [`${value} cards`, 'Cards Studied']}
+                    />
+                    <Bar dataKey="cards" radius={[4, 4, 0, 0]}>
+                      {data.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.cards > 0 ? '#3b82f6' : '#3f3f46'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-4 space-y-2 text-sm">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Total Cards:</span>
+                  <span className="text-foreground font-semibold">{data.reduce((sum, day) => sum + day.cards, 0)}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Total Sessions:</span>
+                  <span className="text-foreground font-semibold">{data.reduce((sum, day) => sum + day.sessions, 0)}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Total Time:</span>
+                  <span className="text-foreground font-semibold">{Math.floor(data.reduce((sum, day) => sum + (day.duration || 0), 0))}m</span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -1003,12 +1039,17 @@ const DecksPage: React.FC<{ decks: Deck[], onStudy: (d: Deck) => void, onDelete:
 const StudyPage: React.FC<{ 
     deck: Deck | null, 
     cards: Card[], 
-    onBack: () => void,
-    onUpdateCard: (updatedCard: Card) => void
-}> = ({ deck, cards, onBack, onUpdateCard }) => {
+    onBack: (saveSession?: boolean) => void,
+    onUpdateCard: (updatedCard: Card) => void,
+    userId: string
+}> = ({ deck, cards, onBack, onUpdateCard, userId }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [finished, setFinished] = useState(false);
+  const [sessionStartTime] = useState(Date.now());
+  const [cardsStudied, setCardsStudied] = useState(0);
+  const [showConfidence, setShowConfidence] = useState(false);
+  const [confidenceRating, setConfidenceRating] = useState(0);
 
   if (!deck || cards.length === 0) return (
     <div className="flex flex-col items-center justify-center h-full text-center">
@@ -1021,23 +1062,42 @@ const StudyPage: React.FC<{
   const currentCard = cards[currentIndex];
   const progress = ((currentIndex) / cards.length) * 100;
 
-  const handleGrade = (grade: number) => {
+  const handleAgain = () => {
     if (!currentCard) return;
-
-    // Map buttons to grades
-    // Btn 1 (Again) -> Grade 1 (Fail)
-    // Btn 2 (Easy) -> Grade 4 (Easy) - Requested order
-    // Btn 3 (Medium) -> Grade 3 (Good)
-    // Btn 4 (Hard) -> Grade 2 (Hard)
-
-    let srsGrade = 1;
-    if (grade === 1) srsGrade = 1; // Again
-    if (grade === 2) srsGrade = 4; // Easy
-    if (grade === 3) srsGrade = 3; // Medium
-    if (grade === 4) srsGrade = 2; // Hard
-
+    
+    // Mark as "Again" - use grade 1 (Fail) for SRS
     const result = calculateSm2(
-        srsGrade, 
+        1, // Again = Fail
+        currentCard.repetitions || 0, 
+        currentCard.interval || 0, 
+        currentCard.easeFactor || 2.5
+    );
+
+    const nextDate = getNextReviewDate(result.interval);
+
+    const updatedCard: Card = {
+        ...currentCard,
+        interval: result.interval,
+        easeFactor: result.easeFactor,
+        repetitions: result.repetitions,
+        nextReview: nextDate,
+        lastReviewed: new Date().toISOString(),
+        status: 'learning' // Reset to learning
+    };
+
+    onUpdateCard(updatedCard);
+    setCardsStudied(prev => prev + 1);
+
+    // Stay on same card, just flip back
+    setIsFlipped(false);
+  };
+
+  const handleNext = () => {
+    if (!currentCard) return;
+    
+    // Mark as "Good" - use grade 3 for SRS
+    const result = calculateSm2(
+        3, // Good
         currentCard.repetitions || 0, 
         currentCard.interval || 0, 
         currentCard.easeFactor || 2.5
@@ -1047,7 +1107,6 @@ const StudyPage: React.FC<{
     
     let newStatus: Card['status'] = 'review';
     if (result.interval > 30) newStatus = 'mastered';
-    if (srsGrade === 1) newStatus = 'learning';
 
     const updatedCard: Card = {
         ...currentCard,
@@ -1060,32 +1119,123 @@ const StudyPage: React.FC<{
     };
 
     onUpdateCard(updatedCard);
+    setCardsStudied(prev => prev + 1);
 
     if (currentIndex < cards.length - 1) {
       setIsFlipped(false);
       setTimeout(() => setCurrentIndex(prev => prev + 1), 150);
     } else {
-      setFinished(true);
+      // Show confidence meter before finishing
+      setShowConfidence(true);
     }
+  };
+
+  // Save study session when leaving
+  const saveStudySession = async (completed: boolean, confidence?: number) => {
+    if (!deck) return;
+    
+    const duration = Math.floor((Date.now() - sessionStartTime) / 1000);
+    
+    try {
+      const { error } = await supabase
+        .from('study_sessions')
+        .insert({
+          user_id: userId,
+          deck_id: deck.id,
+          cards_studied: cardsStudied,
+          duration_seconds: duration,
+          confidence_rating: confidence || null,
+          completed: completed,
+          started_at: new Date(sessionStartTime).toISOString(),
+          ended_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error('Error saving study session:', error);
+      }
+    } catch (error) {
+      console.error('Error saving study session:', error);
+    }
+  };
+
+  const handleQuit = async () => {
+    // Save incomplete session
+    await saveStudySession(false);
+    onBack();
   };
 
   // Keyboard controls
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-        if (finished) return;
+        if (finished || showConfidence) return;
         if (e.code === 'Space') {
             if(!isFlipped) setIsFlipped(true);
         }
         if (isFlipped) {
-            if (e.key === '1') handleGrade(1); // Again
-            if (e.key === '2') handleGrade(2); // Easy
-            if (e.key === '3') handleGrade(3); // Medium
-            if (e.key === '4') handleGrade(4); // Hard
+            if (e.key === '1' || e.key === 'a' || e.key === 'A') handleAgain();
+            if (e.key === '2' || e.key === 'n' || e.key === 'N' || e.key === 'Enter') handleNext();
         }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFlipped, finished, currentIndex, currentCard]); 
+  }, [isFlipped, finished, showConfidence, currentIndex, currentCard]); 
+
+  // Confidence meter screen
+  if (showConfidence) {
+    const duration = Math.floor((Date.now() - sessionStartTime) / 1000);
+    const minutes = Math.floor(duration / 60);
+    const seconds = duration % 60;
+
+    const handleConfidenceSubmit = async () => {
+      await saveStudySession(true, confidenceRating);
+      setFinished(true);
+      setShowConfidence(false);
+    };
+
+    return (
+      <div className="flex flex-col items-center justify-center h-[80vh] text-center space-y-6 max-w-2xl mx-auto">
+        <div className="bg-green-500/20 p-6 rounded-full text-green-500">
+            <Icons.Check size={48} />
+        </div>
+        <h2 className="text-3xl font-bold">Session Complete!</h2>
+        <div className="space-y-2 text-muted-foreground">
+          <p>You've reviewed {cardsStudied} cards</p>
+          <p>Duration: {minutes}m {seconds}s</p>
+        </div>
+        
+        <div className="w-full space-y-4 mt-8">
+          <h3 className="text-xl font-semibold">How confident do you feel about this session?</h3>
+          <div className="flex gap-4 justify-center">
+            {[1, 2, 3, 4, 5].map((rating) => (
+              <button
+                key={rating}
+                onClick={() => setConfidenceRating(rating)}
+                className={`w-16 h-16 rounded-full font-bold text-lg transition-all ${
+                  confidenceRating === rating
+                    ? 'bg-white text-black scale-110'
+                    : 'bg-muted text-muted-foreground hover:bg-gray-700'
+                }`}
+              >
+                {rating}
+              </button>
+            ))}
+          </div>
+          <div className="flex justify-between text-xs text-muted-foreground px-4">
+            <span>Not confident</span>
+            <span>Very confident</span>
+          </div>
+        </div>
+
+        <button 
+          onClick={handleConfidenceSubmit}
+          disabled={confidenceRating === 0}
+          className="bg-white text-black font-bold px-8 py-3 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Finish Session
+        </button>
+      </div>
+    );
+  }
 
   if (finished) {
     return (
@@ -1094,7 +1244,7 @@ const StudyPage: React.FC<{
             <Icons.Check size={48} />
         </div>
         <h2 className="text-3xl font-bold">Session Complete!</h2>
-        <p className="text-muted-foreground">You've reviewed all {cards.length} cards in this deck.</p>
+        <p className="text-muted-foreground">You've reviewed {cardsStudied} cards in this deck.</p>
         <button onClick={onBack} className="bg-white text-black font-bold px-8 py-3 rounded-lg hover:bg-gray-200 transition-colors">
             Back to Dashboard
         </button>
@@ -1105,7 +1255,7 @@ const StudyPage: React.FC<{
   return (
     <div className="max-w-3xl mx-auto h-[calc(100vh-100px)] flex flex-col">
       <div className="flex justify-between items-center mb-6">
-        <button onClick={onBack} className="text-muted-foreground hover:text-white flex items-center gap-1">
+        <button onClick={handleQuit} className="text-muted-foreground hover:text-white flex items-center gap-1">
             <Icons.Close size={20} /> Quit
         </button>
         <div className="text-sm font-medium text-muted-foreground">
@@ -1144,18 +1294,20 @@ const StudyPage: React.FC<{
 
       {/* Controls */}
       <div className={`h-24 transition-opacity duration-300 ${isFlipped ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-        <div className="grid grid-cols-4 gap-4">
-            <button onClick={(e) => { e.stopPropagation(); handleGrade(1); }} className="flex flex-col items-center justify-center p-4 rounded-lg bg-destructive/10 hover:bg-destructive/20 border border-destructive/30 hover:border-destructive/50 text-destructive font-bold transition-all active:scale-95">
+        <div className="grid grid-cols-2 gap-4">
+            <button 
+              onClick={(e) => { e.stopPropagation(); handleAgain(); }} 
+              className="flex flex-col items-center justify-center p-4 rounded-lg bg-destructive/10 hover:bg-destructive/20 border border-destructive/30 hover:border-destructive/50 text-destructive font-bold transition-all active:scale-95"
+            >
                 Again
+                <span className="text-xs mt-1 opacity-70">(1 or A)</span>
             </button>
-            <button onClick={(e) => { e.stopPropagation(); handleGrade(2); }} className="flex flex-col items-center justify-center p-4 rounded-lg bg-green-500/10 hover:bg-green-500/20 border border-green-500/30 hover:border-green-500/50 text-green-500 font-bold transition-all active:scale-95">
-                Easy
-            </button>
-            <button onClick={(e) => { e.stopPropagation(); handleGrade(3); }} className="flex flex-col items-center justify-center p-4 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 hover:border-blue-500/50 text-blue-500 font-bold transition-all active:scale-95">
-                Medium
-            </button>
-            <button onClick={(e) => { e.stopPropagation(); handleGrade(4); }} className="flex flex-col items-center justify-center p-4 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 hover:border-orange-500/50 text-orange-500 font-bold transition-all active:scale-95">
-                Hard
+            <button 
+              onClick={(e) => { e.stopPropagation(); handleNext(); }} 
+              className="flex flex-col items-center justify-center p-4 rounded-lg bg-green-500/10 hover:bg-green-500/20 border border-green-500/30 hover:border-green-500/50 text-green-500 font-bold transition-all active:scale-95"
+            >
+                Next
+                <span className="text-xs mt-1 opacity-70">(2, N, or Enter)</span>
             </button>
         </div>
       </div>
@@ -1702,7 +1854,7 @@ const App: React.FC = () => {
     );
   }
 
-  if (currentPage === 'study' && activeDeck) {
+  if (currentPage === 'study' && activeDeck && user) {
     const deckCards = cards.filter(c => c.deckId === activeDeck.id);
     return (
         <Layout page="study" setPage={setCurrentPage} user={user} handleLogout={handleLogout}>
@@ -1710,7 +1862,8 @@ const App: React.FC = () => {
                 deck={activeDeck} 
                 cards={deckCards} 
                 onBack={handleBackFromStudy} 
-                onUpdateCard={handleUpdateCard} 
+                onUpdateCard={handleUpdateCard}
+                userId={user.id}
             />
         </Layout>
     );
