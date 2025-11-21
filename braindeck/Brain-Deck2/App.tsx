@@ -112,6 +112,13 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Clear errors when switching modes
+  const handleModeChange = (newMode: 'login' | 'signup' | 'forgot-password') => {
+    setMode(newMode);
+    setError('');
+    setSuccess('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -138,16 +145,33 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
           redirectTo: `${window.location.origin}/reset-password`,
         });
 
-        if (resetError) throw resetError;
+        if (resetError) {
+          // Provide more user-friendly error messages
+          if (resetError.message?.includes('API') || resetError.message?.includes('key')) {
+            setError('Supabase configuration error. Please check your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
+          } else if (resetError.message?.includes('email')) {
+            setError('Invalid email address or email not found.');
+          } else {
+            setError(resetError.message || 'Failed to send password reset email. Please try again.');
+          }
+          setLoading(false);
+          return;
+        }
 
         setSuccess('Password reset email sent! Please check your inbox.');
         setError('');
         setTimeout(() => {
-          setMode('login');
+          handleModeChange('login');
           setSuccess('');
         }, 3000);
       } catch (err: any) {
-        setError(err.message || 'Failed to send password reset email.');
+        // Handle unexpected errors
+        const errorMessage = err.message || 'Failed to send password reset email.';
+        if (errorMessage.includes('API') || errorMessage.includes('key')) {
+          setError('Configuration error. Please check your environment variables in Vercel settings.');
+        } else {
+          setError(errorMessage);
+        }
       } finally {
         setLoading(false);
       }
@@ -174,9 +198,15 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
         }
         
         // Check if username is available
-        const usernameAvailable = await isUsernameAvailable(username);
-        if (!usernameAvailable) {
-          setError('Username is already taken. Please choose another.');
+        try {
+          const usernameAvailable = await isUsernameAvailable(username);
+          if (!usernameAvailable) {
+            setError('Username is already taken. Please choose another.');
+            setLoading(false);
+            return;
+          }
+        } catch (usernameError: any) {
+          setError(usernameError.message || 'Error checking username availability. Please try again.');
           setLoading(false);
           return;
         }
@@ -396,7 +426,7 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
             <p className="text-center text-sm text-muted-foreground">
               {mode === 'login' ? "Don't have an account? " : "Already have an account? "}
               <button 
-                onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); setSuccess(''); }}
+                onClick={() => handleModeChange(mode === 'login' ? 'signup' : 'login')}
                 className="text-white font-medium cursor-pointer hover:underline"
               >
                 {mode === 'login' ? 'Sign up' : 'Sign in'}
@@ -405,7 +435,7 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
             {mode === 'login' && (
               <p className="text-center text-sm text-muted-foreground">
                 <button 
-                  onClick={() => { setMode('forgot-password'); setError(''); setSuccess(''); }}
+                  onClick={() => handleModeChange('forgot-password')}
                   className="text-white font-medium cursor-pointer hover:underline"
                 >
                   Forgot password?
@@ -418,7 +448,7 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
         {mode === 'forgot-password' && (
           <p className="text-center text-sm text-muted-foreground">
             <button 
-              onClick={() => { setMode('login'); setError(''); setSuccess(''); }}
+              onClick={() => handleModeChange('login')}
               className="text-white font-medium cursor-pointer hover:underline"
             >
               Back to login

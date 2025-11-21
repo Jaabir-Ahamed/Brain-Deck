@@ -85,23 +85,37 @@ export const getUserEmailByUsername = async (username: string): Promise<string |
 
 // Check if username is available
 export const isUsernameAvailable = async (username: string, excludeUserId?: string): Promise<boolean> => {
-  let query = supabase
-    .from('profiles')
-    .select('id')
-    .eq('username', username);
+  try {
+    let query = supabase
+      .from('profiles')
+      .select('id')
+      .eq('username', username);
 
-  if (excludeUserId) {
-    query = query.neq('id', excludeUserId);
-  }
+    if (excludeUserId) {
+      query = query.neq('id', excludeUserId);
+    }
 
-  const { data, error } = await query;
+    const { data, error } = await query;
 
-  if (error) {
-    console.error('Error checking username availability:', error);
+    if (error) {
+      console.error('Error checking username availability:', error);
+      // If it's a connection/auth error, throw it so the UI can show a proper message
+      if (error.code === 'PGRST116' || error.code === '42501' || error.message?.includes('JWT')) {
+        throw new Error('Database connection error. Please check your Supabase configuration.');
+      }
+      // For other errors, assume username is taken to be safe
+      return false;
+    }
+
+    return data.length === 0;
+  } catch (error: any) {
+    // Re-throw connection/auth errors
+    if (error.message?.includes('Database connection') || error.message?.includes('Supabase')) {
+      throw error;
+    }
+    console.error('Unexpected error checking username availability:', error);
     return false;
   }
-
-  return data.length === 0;
 };
 
 // Deck operations
