@@ -69,7 +69,7 @@ export default function StudyPage() {
 
   const handleGrade = (grade: 1 | 2 | 3 | 4) => {
     const gradeLabels = { 1: "Again", 2: "Hard", 3: "Good", 4: "Easy" }
-    toast.success(`Graded as ${gradeLabels[grade]} (mock)`)
+    toast.success(`Graded as ${gradeLabels[grade]}`)
 
     updateCard(currentCard.id, {
       easeFactor: Math.max(1.3, (currentCard.easeFactor || 2.5) + (grade - 2.5) * 0.1),

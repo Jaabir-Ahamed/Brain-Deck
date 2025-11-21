@@ -37,7 +37,7 @@ export default function DecksPage() {
     }
 
     addDeck(newDeckName, newDeckSubject)
-    toast.success("Deck created (mock)")
+    toast.success("Deck created")
     setNewDeckName("")
     setNewDeckSubject("")
     setOpen(false)
@@ -45,7 +45,7 @@ export default function DecksPage() {
 
   const handleDeleteDeck = (deckId: string) => {
     deleteDeck(deckId)
-    toast.success("Deck deleted (mock)")
+    toast.success("Deck deleted")
     setDeleteConfirm({ open: false, deckId: "" })
   }
 

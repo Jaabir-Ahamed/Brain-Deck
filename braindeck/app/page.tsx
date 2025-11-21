@@ -1,29 +1,61 @@
 "use client"
 
-import { useAppStore } from "@/lib/store"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { AppShell } from "@/components/app-shell"
-import { StatCard } from "@/components/stat-card"
 import { ActivityItemComponent } from "@/components/activity-item"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { mockActivity } from "@/lib/mock-data"
-import { Zap, BookOpen, Lightbulb, Flame } from "lucide-react"
+import { supabaseBrowser } from "@/lib/supabase"
 import { toast } from "sonner"
+import type { ActivityItem } from "@/lib/types"
 
 export default function HomePage() {
-  const { decks, cards } = useAppStore()
+  const router = useRouter()
+  const [loading, setLoading] = useState(true)
+  const [activity, setActivity] = useState<ActivityItem[]>([])
 
-  const dueToday = decks.reduce((sum, deck) => sum + deck.dueToday, 0)
-  const totalCards = cards.length
-  const newSuggestions = 6
-  const streak = 7
+  useEffect(() => {
+    // Fetch recent activity (can be implemented later)
+    setActivity([])
+    setLoading(false)
+  }, [])
 
-  const handleStartStudying = () => {
-    if (dueToday === 0) {
-      toast.info("No cards due today. Great job!")
-      return
+  const handleStartStudying = async () => {
+    try {
+      const supabase = supabaseBrowser()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (!user) {
+        toast.error("Please sign in to study")
+        router.push("/auth/signin")
+        return
+      }
+
+      // Get last studied deck or latest deck
+      const response = await fetch(`/api/decks/last-studied?userId=${user.id}`)
+      
+      if (!response.ok) {
+        const error = await response.json()
+        if (response.status === 404) {
+          toast.error("No decks found. Create a deck or upload a PDF to get started.")
+          router.push("/decks")
+        } else {
+          toast.error(error.error || "Failed to find deck")
+        }
+        return
+      }
+
+      const { deck } = await response.json()
+      if (deck?.id) {
+        router.push(`/study/${deck.id}`)
+      } else {
+        toast.error("No deck found")
+        router.push("/decks")
+      }
+    } catch (error: any) {
+      toast.error(`Error: ${error.message}`)
     }
-    toast.success("Starting study session (mock)")
   }
 
   return (
@@ -35,14 +67,6 @@ export default function HomePage() {
           <p className="text-muted-foreground mt-2">Here's your learning overview</p>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={Zap} label="Due Today" value={dueToday} description="cards to review" />
-          <StatCard icon={BookOpen} label="Total Cards" value={totalCards} description="in your decks" />
-          <StatCard icon={Lightbulb} label="New Suggestions" value={newSuggestions} description="waiting to review" />
-          <StatCard icon={Flame} label="Streak" value={streak} description="days in a row" />
-        </div>
-
         {/* CTA Section */}
         <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
           <CardContent className="pt-6">
@@ -50,10 +74,10 @@ export default function HomePage() {
               <div>
                 <h3 className="font-semibold text-lg">Ready to study?</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  You have {dueToday} cards due today. Keep your streak going!
+                  Start a study session to review your cards
                 </p>
               </div>
-              <Button onClick={handleStartStudying} disabled={dueToday === 0}>
+              <Button onClick={handleStartStudying}>
                 Start Studying
               </Button>
             </div>
@@ -61,14 +85,16 @@ export default function HomePage() {
         </Card>
 
         {/* Recent Activity */}
-        <div>
-          <h2 className="text-xl font-semibold mb-4">Recent Activity</h2>
-          <div className="space-y-3">
-            {mockActivity.map((item) => (
-              <ActivityItemComponent key={item.id} item={item} />
-            ))}
+        {activity.length > 0 && (
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Recent Activity</h2>
+            <div className="space-y-3">
+              {activity.map((item) => (
+                <ActivityItemComponent key={item.id} item={item} />
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </AppShell>
   )

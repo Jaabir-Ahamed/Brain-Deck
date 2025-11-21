@@ -44,7 +44,7 @@ export default function DeckDetailPage() {
 
   const handleAddCard = (cardData: Omit<CardType, "id" | "createdAt">) => {
     addCard(deckId, cardData)
-    toast.success("Card added (mock)")
+    toast.success("Card added")
   }
 
   const handleEditCard = (card: CardType) => {
@@ -55,14 +55,14 @@ export default function DeckDetailPage() {
   const handleSaveCard = (cardData: Omit<CardType, "id" | "createdAt">) => {
     if (editingCard) {
       updateCard(editingCard.id, cardData)
-      toast.success("Card updated (mock)")
+      toast.success("Card updated")
     }
     setEditingCard(undefined)
   }
 
   const handleDeleteCard = (cardId: string) => {
     deleteCard(cardId)
-    toast.success("Card deleted (mock)")
+    toast.success("Card deleted")
     setDeleteConfirm({ open: false, cardId: "" })
   }
 

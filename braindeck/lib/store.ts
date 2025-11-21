@@ -1,6 +1,5 @@
 import { create } from "zustand"
 import type { Subject, Deck, Card, Upload, Suggestion } from "./types"
-import { mockSubjects, mockDecks, mockCards, mockUploads, mockSuggestions } from "./mock-data"
 
 interface AppStore {
   subjects: Subject[]
@@ -34,11 +33,11 @@ interface AppStore {
 }
 
 export const useAppStore = create<AppStore>((set) => ({
-  subjects: mockSubjects,
-  decks: mockDecks,
-  cards: mockCards,
-  uploads: mockUploads,
-  suggestions: mockSuggestions,
+  subjects: [],
+  decks: [],
+  cards: [],
+  uploads: [],
+  suggestions: [],
 
   addSubject: (name) =>
     set((state) => ({

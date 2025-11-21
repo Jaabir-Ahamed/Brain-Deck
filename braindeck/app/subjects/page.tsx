@@ -29,14 +29,14 @@ export default function SubjectsPage() {
     }
 
     addSubject(newSubjectName)
-    toast.success("Subject created (mock)")
+    toast.success("Subject created")
     setNewSubjectName("")
     setOpen(false)
   }
 
   const handleDeleteSubject = (id: string) => {
     deleteSubject(id)
-    toast.success("Subject deleted (mock)")
+    toast.success("Subject deleted")
   }
 
   const getSubjectStats = (subjectId: string) => {

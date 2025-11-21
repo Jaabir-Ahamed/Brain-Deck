@@ -50,7 +50,7 @@ export default function SuggestionsPage() {
   const handleConfirmAccept = () => {
     if (acceptDeckId && pendingAcceptId) {
       acceptSuggestion(pendingAcceptId, acceptDeckId)
-      toast.success("Suggestion accepted (mock)")
+      toast.success("Suggestion accepted")
       setAcceptDeckId("")
       setAcceptDialogOpen(false)
       setPendingAcceptId("")
@@ -59,7 +59,7 @@ export default function SuggestionsPage() {
 
   const handleDiscard = (suggestionId: string) => {
     discardSuggestion(suggestionId)
-    toast.success("Suggestion discarded (mock)")
+    toast.success("Suggestion discarded")
   }
 
   const handleEdit = (suggestion: Suggestion) => {
@@ -74,7 +74,7 @@ export default function SuggestionsPage() {
         back: cardData.back,
         type: cardData.type,
       })
-      toast.success("Suggestion updated (mock)")
+      toast.success("Suggestion updated")
       setEditingSuggestion(undefined)
     }
   }
