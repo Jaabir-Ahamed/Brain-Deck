@@ -26,12 +26,16 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
 
-3. **IMPORTANT**: Grant execute permission to anonymous users:
+3. **IMPORTANT**: Grant execute permission to anonymous users for BOTH functions:
 
 ```sql
 -- Allow public access to check username availability (needed for signup)
 GRANT EXECUTE ON FUNCTION public.is_username_available(TEXT, UUID) TO anon;
 GRANT EXECUTE ON FUNCTION public.is_username_available(TEXT, UUID) TO authenticated;
+
+-- Allow public access to get email by username (needed for login)
+GRANT EXECUTE ON FUNCTION public.get_user_email_by_username(TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION public.get_user_email_by_username(TEXT) TO authenticated;
 ```
 
 4. Verify it was created and has permissions:
