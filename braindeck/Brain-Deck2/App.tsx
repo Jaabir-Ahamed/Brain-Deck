@@ -147,10 +147,15 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
 
         if (resetError) {
           // Provide more user-friendly error messages
-          if (resetError.message?.includes('API') || resetError.message?.includes('key')) {
-            setError('Supabase configuration error. Please check your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
-          } else if (resetError.message?.includes('email')) {
-            setError('Invalid email address or email not found.');
+          console.error('Password reset error:', resetError);
+          // Check for specific Supabase configuration errors
+          if (resetError.message?.includes('Invalid API key') || 
+              resetError.message?.includes('JWT') ||
+              resetError.code === 'invalid_credentials' ||
+              resetError.status === 401) {
+            setError('Supabase configuration error. Please check your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables in Vercel settings.');
+          } else if (resetError.message?.includes('email') || resetError.message?.includes('user')) {
+            setError('Invalid email address or email not found. Please check your email and try again.');
           } else {
             setError(resetError.message || 'Failed to send password reset email. Please try again.');
           }
@@ -166,8 +171,12 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
         }, 3000);
       } catch (err: any) {
         // Handle unexpected errors
+        console.error('Unexpected error in password reset:', err);
         const errorMessage = err.message || 'Failed to send password reset email.';
-        if (errorMessage.includes('API') || errorMessage.includes('key')) {
+        // Only show config error for specific cases
+        if (errorMessage.includes('Invalid API key') || 
+            errorMessage.includes('JWT') ||
+            errorMessage.includes('configuration')) {
           setError('Configuration error. Please check your environment variables in Vercel settings.');
         } else {
           setError(errorMessage);
@@ -199,14 +208,19 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
         
         // Check if username is available
         try {
+          console.log('Checking username availability during signup:', username);
           const usernameAvailable = await isUsernameAvailable(username);
+          console.log('Username available result:', usernameAvailable);
+          
           if (!usernameAvailable) {
             setError('Username is already taken. Please choose another.');
             setLoading(false);
             return;
           }
         } catch (usernameError: any) {
-          setError(usernameError.message || 'Error checking username availability. Please try again.');
+          console.error('Error during username check:', usernameError);
+          // Show the actual error message to help debug
+          setError(usernameError.message || 'Error checking username availability. Please check the browser console for details.');
           setLoading(false);
           return;
         }

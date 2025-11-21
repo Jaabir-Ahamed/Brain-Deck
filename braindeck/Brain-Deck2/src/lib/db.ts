@@ -87,6 +87,7 @@ export const getUserEmailByUsername = async (username: string): Promise<string |
 // Uses a database function to bypass RLS policies (needed for signup when user is not authenticated)
 export const isUsernameAvailable = async (username: string, excludeUserId?: string): Promise<boolean> => {
   try {
+    console.log('Checking username availability for:', username);
     const { data, error } = await supabase.rpc('is_username_available', {
       username_param: username,
       exclude_user_id: excludeUserId || null
@@ -94,19 +95,39 @@ export const isUsernameAvailable = async (username: string, excludeUserId?: stri
 
     if (error) {
       console.error('Error checking username availability:', error);
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
+      
+      // If the function doesn't exist, provide clear instructions
+      if (error.code === '42883' || error.message?.includes('function') || error.message?.includes('does not exist')) {
+        throw new Error('Database function not found. Please run the migration in Supabase SQL Editor: supabase/migrations/002_add_username_and_profile_picture.sql');
+      }
+      
       // If it's a connection/auth error, throw it so the UI can show a proper message
-      if (error.code === 'PGRST116' || error.code === '42501' || error.message?.includes('JWT') || error.message?.includes('function')) {
+      if (error.code === 'PGRST116' || error.code === '42501' || error.message?.includes('JWT') || error.code === 'PGRST301') {
         throw new Error('Database connection error. Please check your Supabase configuration and ensure the is_username_available function exists.');
       }
-      // For other errors, assume username is taken to be safe
+      
+      // For permission errors, the function might not be accessible
+      if (error.code === '42501' || error.message?.includes('permission denied')) {
+        throw new Error('Database permission error. Please ensure the is_username_available function has GRANT EXECUTE TO anon permissions.');
+      }
+      
+      // For other errors, log and assume username is taken to be safe
+      console.warn('Assuming username is taken due to error:', error);
       return false;
     }
 
+    console.log('Username availability result:', data);
     // The function returns a boolean
     return data === true;
   } catch (error: any) {
     // Re-throw connection/auth errors
-    if (error.message?.includes('Database connection') || error.message?.includes('Supabase') || error.message?.includes('function')) {
+    if (error.message?.includes('Database') || error.message?.includes('Supabase') || error.message?.includes('function') || error.message?.includes('migration')) {
       throw error;
     }
     console.error('Unexpected error checking username availability:', error);
