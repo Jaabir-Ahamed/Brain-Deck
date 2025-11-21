@@ -63,20 +63,47 @@ export const updateProfile = async (userId: string, updates: { name?: string; us
 };
 
 // Get user email by username (for login)
+// Uses a database function to bypass RLS policies (needed for login when user is not authenticated)
 export const getUserEmailByUsername = async (username: string): Promise<string | null> => {
   try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('email, id')
-      .eq('username', username)
-      .single();
+    console.log('Looking up email for username:', username);
+    // Use the RPC function that bypasses RLS
+    const { data, error } = await supabase.rpc('get_user_email_by_username', {
+      username_param: username
+    });
 
     if (error) {
       console.error('Error getting user email by username:', error);
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        status: error.status
+      });
+      
+      // If function doesn't exist or permission denied
+      if (error.status === 401 || error.code === '42501' || error.message?.includes('permission denied') || error.message?.includes('JWT')) {
+        console.error('Permission error - function may not have GRANT EXECUTE. Run: GRANT EXECUTE ON FUNCTION public.get_user_email_by_username(TEXT) TO anon;');
+        return null;
+      }
+      
+      if (error.code === '42883' || error.message?.includes('function') || error.message?.includes('does not exist') || error.code === 'PGRST116') {
+        console.error('Function not found - migration may not have been run');
+        return null;
+      }
+      
       return null;
     }
 
-    return data?.email || null;
+    // The function returns a table, so data is an array
+    if (data && Array.isArray(data) && data.length > 0) {
+      console.log('Found email for username:', data[0].email);
+      return data[0].email;
+    }
+    
+    console.log('No user found with username:', username);
+    return null;
   } catch (error) {
     console.error('Error in getUserEmailByUsername:', error);
     return null;
