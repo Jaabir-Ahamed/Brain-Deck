@@ -99,39 +99,30 @@ export const isUsernameAvailable = async (username: string, excludeUserId?: stri
         code: error.code,
         message: error.message,
         details: error.details,
-        hint: error.hint
+        hint: error.hint,
+        status: error.status
       });
       
-      // If the function doesn't exist, provide clear instructions
-      if (error.code === '42883' || error.message?.includes('function') || error.message?.includes('does not exist')) {
+      // 401 Unauthorized - permission issue
+      if (error.status === 401 || error.code === '42501' || error.message?.includes('permission denied') || error.message?.includes('JWT')) {
+        throw new Error('Permission denied. Please run this SQL in Supabase SQL Editor:\n\nGRANT EXECUTE ON FUNCTION public.is_username_available(TEXT, UUID) TO anon;\n\nThen refresh the page and try again.');
+      }
+      
+      // If the function doesn't exist
+      if (error.code === '42883' || error.message?.includes('function') || error.message?.includes('does not exist') || error.code === 'PGRST116') {
         throw new Error('Database function not found. Please run the migration in Supabase SQL Editor: supabase/migrations/002_add_username_and_profile_picture.sql');
       }
       
-      // If it's a connection/auth error, throw it so the UI can show a proper message
-      if (error.code === 'PGRST116' || error.code === '42501' || error.message?.includes('JWT') || error.code === 'PGRST301') {
-        throw new Error('Database connection error. Please check your Supabase configuration and ensure the is_username_available function exists.');
-      }
-      
-      // For permission errors, the function might not be accessible
-      if (error.code === '42501' || error.message?.includes('permission denied')) {
-        throw new Error('Database permission error. Please ensure the is_username_available function has GRANT EXECUTE TO anon permissions.');
-      }
-      
-      // For other errors, log and assume username is taken to be safe
-      console.warn('Assuming username is taken due to error:', error);
-      return false;
+      // For other errors, throw with details
+      throw new Error(`Database error: ${error.message || error.code || 'Unknown error'}. Please check your Supabase configuration.`);
     }
 
     console.log('Username availability result:', data);
     // The function returns a boolean
     return data === true;
   } catch (error: any) {
-    // Re-throw connection/auth errors
-    if (error.message?.includes('Database') || error.message?.includes('Supabase') || error.message?.includes('function') || error.message?.includes('migration')) {
-      throw error;
-    }
-    console.error('Unexpected error checking username availability:', error);
-    return false;
+    // Re-throw all errors so UI can show them
+    throw error;
   }
 };
 

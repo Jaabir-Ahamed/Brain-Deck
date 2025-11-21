@@ -2,12 +2,12 @@
 
 ## Issue: "Username is already taken" during signup (even with empty table)
 
-### Solution: Run the Database Migration
+### Solution: Run the Database Migration and Grant Permissions
 
-The `is_username_available` function must exist in your Supabase database. 
+The `is_username_available` function must exist AND have proper permissions in your Supabase database. 
 
 1. Go to your Supabase Dashboard → **SQL Editor**
-2. Run this SQL:
+2. Run this SQL to create the function:
 
 ```sql
 -- Function to check if username is available (bypasses RLS for signup)
@@ -24,15 +24,35 @@ BEGIN
   RETURN user_count = 0;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+```
 
+3. **IMPORTANT**: Grant execute permission to anonymous users:
+
+```sql
 -- Allow public access to check username availability (needed for signup)
 GRANT EXECUTE ON FUNCTION public.is_username_available(TEXT, UUID) TO anon;
+GRANT EXECUTE ON FUNCTION public.is_username_available(TEXT, UUID) TO authenticated;
 ```
 
-3. Verify it was created:
+4. Verify it was created and has permissions:
 ```sql
+-- Check function exists
 SELECT proname FROM pg_proc WHERE proname = 'is_username_available';
+
+-- Check permissions
+SELECT 
+  p.proname as function_name,
+  r.rolname as role_name
+FROM pg_proc p
+JOIN pg_namespace n ON p.pronamespace = n.oid
+JOIN pg_proc_acl a ON p.oid = a.oid
+JOIN pg_roles r ON a.aclrole = r.oid
+WHERE p.proname = 'is_username_available';
 ```
+
+### If you get a 401 error:
+
+This means the function exists but permissions aren't set. Run the GRANT statements above.
 
 ## Issue: Password Reset Shows Configuration Error
 
