@@ -23,8 +23,16 @@ This guide will help you set up Supabase for BrainDeck.
 ```env
 VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key-here
-GEMINI_API_KEY=your-gemini-api-key-here
+VITE_GEMINI_API_KEY=your-gemini-api-key-here
+# For production: set this to your deployed app URL (e.g., https://your-app.vercel.app)
+# For local development: leave this unset (it will use localhost automatically)
+VITE_APP_URL=https://your-app.vercel.app
 ```
+
+**Important**: 
+- `VITE_APP_URL` should be your production app URL (e.g., your Vercel deployment URL)
+- For local development, you can leave `VITE_APP_URL` unset - it will automatically use `localhost`
+- Make sure to add `VITE_APP_URL` to your Vercel environment variables for production
 
 ## Step 3: Run Database Migration
 
@@ -114,11 +122,26 @@ All tables have RLS policies that ensure:
 - Check that the migration was run successfully
 - Ensure RLS policies are enabled
 
+## Step 6: Configure Redirect URLs in Supabase
+
+For email confirmation and password reset to work, you need to add your app URLs to Supabase's allowed redirect URLs:
+
+1. Go to your Supabase dashboard
+2. Navigate to **Authentication** → **URL Configuration**
+3. Add your redirect URLs:
+   - **Site URL**: Your production app URL (e.g., `https://your-app.vercel.app`)
+   - **Redirect URLs**: Add both:
+     - `https://your-app.vercel.app` (for production)
+     - `http://localhost:3000` (for local development, if needed)
+     - `http://localhost:5173` (if using Vite's default port)
+
+**Note**: Supabase will automatically append the hash fragments (`#access_token=...`) to these URLs when redirecting after email confirmation.
+
 ## Next Steps
 
-- [ ] Set up email confirmation (optional, for production)
-- [ ] Configure password reset flows
+- [x] Set up email confirmation (configured in code)
+- [x] Configure password reset flows (configured in code)
 - [ ] Add social authentication (Google, GitHub, etc.)
 - [ ] Set up database backups
-- [ ] Configure production environment variables
+- [ ] Configure production environment variables in Vercel
 

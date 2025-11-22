@@ -141,8 +141,10 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
       }
 
       try {
+        // Use VITE_APP_URL if set (for production), otherwise use current origin (for local dev)
+        const redirectUrl = import.meta.env.VITE_APP_URL || window.location.origin;
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/reset-password`,
+          redirectTo: `${redirectUrl}/reset-password`,
         });
 
         if (resetError) {
@@ -226,6 +228,9 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
         }
         
         // Sign up with Supabase (still use email for auth, but store username)
+        // Use VITE_APP_URL if set (for production), otherwise use current origin (for local dev)
+        const redirectUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+        
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email,
           password,
@@ -234,7 +239,7 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
               name: name,
               username: username,
             },
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: redirectUrl,
           },
         });
 
