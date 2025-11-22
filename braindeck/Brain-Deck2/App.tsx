@@ -243,8 +243,16 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
         // Check if email confirmation is required
         if (authData.user && !authData.session) {
           // Email confirmation is enabled - user needs to confirm email
-          setError('Account created! Please check your email to confirm your account, then try logging in.');
+          // Clear all form fields
+          setUsername('');
+          setEmail('');
+          setPassword('');
+          setName('');
+          // Show success message and switch to login mode
+          setSuccess('Account created! Please check your email to confirm your account, then try logging in.');
+          setError('');
           setMode('login'); // Switch to login mode
+          setLoading(false);
           return;
         }
 
@@ -415,8 +423,8 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
           )}
 
           {success && (
-            <div className="text-green-500 text-sm bg-green-500/10 p-3 rounded-lg flex items-center gap-2">
-              <Icons.Check size={16} /> {success}
+            <div className="text-blue-400 text-sm bg-blue-500/10 border border-blue-500/20 p-3 rounded-lg flex items-center gap-2">
+              <Icons.SearchCheck size={16} /> {success}
             </div>
           )}
 
@@ -1624,6 +1632,40 @@ const App: React.FC = () => {
         if (!supabaseUrl || !supabaseKey) {
           console.warn('Supabase not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file');
           if (isMounted) setLoading(false);
+          return;
+        }
+
+        // Handle email confirmation callback from URL hash
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const type = hashParams.get('type');
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+        
+        if (type === 'email' && accessToken) {
+          try {
+            // Exchange the access token for a session to confirm the email
+            const { data: { session }, error: hashError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || '',
+            });
+            
+            if (hashError) {
+              console.error('Error confirming email:', hashError);
+            } else {
+              // Email confirmed successfully - sign out to redirect to login
+              await supabase.auth.signOut();
+            }
+          } catch (error) {
+            console.error('Error handling email confirmation:', error);
+          }
+          
+          // Clear the hash from URL and redirect to login
+          window.history.replaceState(null, '', window.location.pathname);
+          if (isMounted) {
+            setUser(null);
+            setCurrentPage('login');
+            setLoading(false);
+          }
           return;
         }
 
