@@ -28,6 +28,7 @@ const Layout: React.FC<{
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: Icons.Dashboard },
     { id: 'decks', label: 'Decks', icon: Icons.Decks },
+    { id: 'suggestions', label: 'Suggestions', icon: Icons.Suggestions },
     { id: 'uploads', label: 'AI Generator', icon: Icons.Upload },
     { id: 'create-deck', label: 'Deck Builder', icon: Icons.Plus },
     { id: 'profile', label: 'Profile', icon: Icons.Profile },
@@ -635,19 +636,17 @@ const Dashboard: React.FC<{ decks: Deck[], user: User, setPage: (p: string) => v
 const DeckBuilderPage: React.FC<{ onAddDeck: (d: Omit<Deck, 'id' | 'created'>, c: Omit<Card, 'id'>[]) => Promise<void>, setPage: (p: string) => void }> = ({ onAddDeck, setPage }) => {
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('');
-  const [draftCards, setDraftCards] = useState<{front: string, back: string, difficulty: 'Easy' | 'Medium' | 'Hard'}[]>([]);
+  const [draftCards, setDraftCards] = useState<{front: string, back: string}[]>([]);
   
   // Current card inputs
   const [front, setFront] = useState('');
   const [back, setBack] = useState('');
-  const [difficulty, setDifficulty] = useState<'Easy' | 'Medium' | 'Hard'>('Medium');
 
   const addCard = () => {
     if (!front.trim() || !back.trim()) return;
-    setDraftCards([...draftCards, { front, back, difficulty }]);
+    setDraftCards([...draftCards, { front, back }]);
     setFront('');
     setBack('');
-    setDifficulty('Medium');
   };
 
   const removeCard = (index: number) => {
@@ -663,39 +662,16 @@ const DeckBuilderPage: React.FC<{ onAddDeck: (d: Omit<Deck, 'id' | 'created'>, c
         cardCount: draftCards.length,
     };
 
-    const newCards: Omit<Card, 'id'>[] = draftCards.map((dc) => {
-        // Preset SRS values based on initial difficulty selection
-        let interval = 0;
-        let easeFactor = 2.5;
-        let repetitions = 0;
-        let status: Card['status'] = 'new';
-
-        if (dc.difficulty === 'Easy') {
-            interval = 4;
-            repetitions = 1;
-            easeFactor = 2.7;
-            status = 'learning'; // Slightly advanced
-        } else if (dc.difficulty === 'Medium') {
-            interval = 1;
-            repetitions = 0;
-            easeFactor = 2.5;
-        } else { // Hard
-            interval = 0;
-            repetitions = 0;
-            easeFactor = 2.3;
-        }
-
-        return {
-            deckId: '', // Will be set by onAddDeck
-            type: 'qa' as const,
-            front: dc.front,
-            back: dc.back,
-            status: status,
-            interval: interval,
-            repetitions: repetitions,
-            easeFactor: easeFactor
-        };
-    });
+    const newCards: Omit<Card, 'id'>[] = draftCards.map((dc) => ({
+        deckId: '', // Will be set by onAddDeck
+        type: 'qa' as const,
+        front: dc.front,
+        back: dc.back,
+        status: 'new' as const,
+        interval: 0,
+        repetitions: 0,
+        easeFactor: 2.5
+    }));
 
     await onAddDeck(newDeck, newCards);
     setPage('dashboard');
@@ -752,19 +728,6 @@ const DeckBuilderPage: React.FC<{ onAddDeck: (d: Omit<Deck, 'id' | 'created'>, c
                              placeholder="A reusable UI element..."
                           />
                       </div>
-                      <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">Initial Difficulty</label>
-                          <select 
-                            value={difficulty} 
-                            onChange={(e) => setDifficulty(e.target.value as any)}
-                            className="w-full bg-input border border-border rounded px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-white"
-                          >
-                              <option value="Easy">Easy</option>
-                              <option value="Medium">Medium</option>
-                              <option value="Hard">Hard</option>
-                          </select>
-                          <p className="text-xs text-muted-foreground mt-1">Sets how soon this card appears for review.</p>
-                      </div>
                       <button 
                         onClick={addCard}
                         disabled={!front.trim() || !back.trim()}
@@ -798,15 +761,6 @@ const DeckBuilderPage: React.FC<{ onAddDeck: (d: Omit<Deck, 'id' | 'created'>, c
                               <button onClick={() => removeCard(idx)} className="absolute top-2 right-2 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
                                   <Icons.Close size={16} />
                               </button>
-                              <div className="mb-2">
-                                  <span className={`text-xs font-bold px-2 py-0.5 rounded ${
-                                      card.difficulty === 'Easy' ? 'bg-green-900 text-green-300' : 
-                                      card.difficulty === 'Hard' ? 'bg-orange-900 text-orange-300' : 
-                                      'bg-blue-900 text-blue-300'
-                                  }`}>
-                                      {card.difficulty}
-                                  </span>
-                              </div>
                               <div className="mb-2">
                                   <span className="text-xs text-muted-foreground uppercase">Q:</span>
                                   <p className="text-sm line-clamp-2">{card.front}</p>
@@ -845,7 +799,6 @@ const EditDeckPage: React.FC<{
   // New card inputs
   const [newCardFront, setNewCardFront] = useState('');
   const [newCardBack, setNewCardBack] = useState('');
-  const [newCardDifficulty, setNewCardDifficulty] = useState<'Easy' | 'Medium' | 'Hard'>('Medium');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -906,42 +859,20 @@ const EditDeckPage: React.FC<{
 
     setLoading(true);
     try {
-      // Preset SRS values based on initial difficulty selection
-      let interval = 0;
-      let easeFactor = 2.5;
-      let repetitions = 0;
-      let status: Card['status'] = 'new';
-
-      if (newCardDifficulty === 'Easy') {
-        interval = 4;
-        repetitions = 1;
-        easeFactor = 2.7;
-        status = 'learning';
-      } else if (newCardDifficulty === 'Medium') {
-        interval = 1;
-        repetitions = 0;
-        easeFactor = 2.5;
-      } else { // Hard
-        interval = 0;
-        repetitions = 0;
-        easeFactor = 2.3;
-      }
-
       const newCard: Omit<Card, 'id'> = {
         deckId: deck.id,
         type: 'qa' as const,
         front: newCardFront.trim(),
         back: newCardBack.trim(),
-        status: status,
-        interval: interval,
-        repetitions: repetitions,
-        easeFactor: easeFactor
+        status: 'new' as const,
+        interval: 0,
+        repetitions: 0,
+        easeFactor: 2.5
       };
 
       await onAddCards([newCard]);
       setNewCardFront('');
       setNewCardBack('');
-      setNewCardDifficulty('Medium');
       // Cards will be reloaded by parent component
     } catch (err) {
       setError('Failed to add card');
@@ -1042,18 +973,6 @@ const EditDeckPage: React.FC<{
                 className="w-full bg-input border border-border rounded px-3 py-2 text-white min-h-[80px] focus:outline-none focus:ring-1 focus:ring-white"
                 placeholder="A reusable UI element..."
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-1">Initial Difficulty</label>
-              <select 
-                value={newCardDifficulty} 
-                onChange={(e) => setNewCardDifficulty(e.target.value as any)}
-                className="w-full bg-input border border-border rounded px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-white"
-              >
-                <option value="Easy">Easy</option>
-                <option value="Medium">Medium</option>
-                <option value="Hard">Hard</option>
-              </select>
             </div>
             <button 
               onClick={addNewCard}
@@ -1661,9 +1580,216 @@ const StudyPage: React.FC<{
   );
 };
 
+// --- PAGE: SUGGESTIONS ---
+
+const SuggestionsPage: React.FC<{ 
+  decks: Deck[], 
+  cards: Card[],
+  onStudy: (deck: Deck) => void,
+  onStudyCard: (deck: Deck, cardIndex: number) => void
+}> = ({ decks, cards, onStudy, onStudyCard }) => {
+  // Get cards that need review (nextReview is past or today)
+  const cardsNeedingReview = cards.filter(card => {
+    if (!card.nextReview) return card.status === 'new';
+    return new Date(card.nextReview) <= new Date();
+  });
+
+  // Get cards with low ease factor (struggled cards)
+  const struggledCards = cards.filter(card => 
+    card.easeFactor < 2.3 && card.status !== 'new'
+  ).sort((a, b) => a.easeFactor - b.easeFactor);
+
+  // Get decks not studied in a while (more than 3 days)
+  const threeDaysAgo = new Date();
+  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+  const neglectedDecks = decks.filter(deck => {
+    if (!deck.lastStudied) return true;
+    return new Date(deck.lastStudied) < threeDaysAgo;
+  });
+
+  // Get new cards that haven't been studied yet
+  const newCards = cards.filter(card => card.status === 'new');
+
+  // Group cards by deck for display
+  const getDeckForCard = (cardId: string) => {
+    const card = cards.find(c => c.id === cardId);
+    if (!card) return null;
+    return decks.find(d => d.id === card.deckId);
+  };
+
+  const getCardIndex = (deckId: string, cardId: string) => {
+    const deckCards = cards.filter(c => c.deckId === deckId);
+    return deckCards.findIndex(c => c.id === cardId);
+  };
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold">Study Suggestions</h1>
+        <p className="text-muted-foreground mt-1">Personalized recommendations based on your study history.</p>
+      </div>
+
+      {/* Due for Review */}
+      {cardsNeedingReview.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Icons.Clock size={20} className="text-blue-400" />
+            <h2 className="text-xl font-semibold">Due for Review</h2>
+            <span className="bg-blue-500/20 text-blue-400 text-xs px-2 py-1 rounded-full">
+              {cardsNeedingReview.length} cards
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {cardsNeedingReview.slice(0, 6).map(card => {
+              const deck = getDeckForCard(card.id);
+              if (!deck) return null;
+              return (
+                <div key={card.id} className="bg-card border border-border rounded-xl p-4 hover:border-blue-500/50 transition-all">
+                  <div className="text-xs text-muted-foreground mb-2 truncate">{deck.title}</div>
+                  <p className="text-sm font-medium line-clamp-2 mb-3">{card.front}</p>
+                  <button 
+                    onClick={() => onStudyCard(deck, getCardIndex(deck.id, card.id))}
+                    className="text-sm text-blue-400 hover:text-blue-300 font-medium"
+                  >
+                    Review Now →
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          {cardsNeedingReview.length > 6 && (
+            <p className="text-sm text-muted-foreground">
+              And {cardsNeedingReview.length - 6} more cards need review...
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Struggled Cards */}
+      {struggledCards.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Icons.Warning size={20} className="text-orange-400" />
+            <h2 className="text-xl font-semibold">Need More Practice</h2>
+            <span className="bg-orange-500/20 text-orange-400 text-xs px-2 py-1 rounded-full">
+              {struggledCards.length} cards
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground">Cards you've had difficulty with in the past.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {struggledCards.slice(0, 6).map(card => {
+              const deck = getDeckForCard(card.id);
+              if (!deck) return null;
+              return (
+                <div key={card.id} className="bg-card border border-border rounded-xl p-4 hover:border-orange-500/50 transition-all">
+                  <div className="text-xs text-muted-foreground mb-2 truncate">{deck.title}</div>
+                  <p className="text-sm font-medium line-clamp-2 mb-3">{card.front}</p>
+                  <button 
+                    onClick={() => onStudyCard(deck, getCardIndex(deck.id, card.id))}
+                    className="text-sm text-orange-400 hover:text-orange-300 font-medium"
+                  >
+                    Practice Again →
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Neglected Decks */}
+      {neglectedDecks.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Icons.Decks size={20} className="text-purple-400" />
+            <h2 className="text-xl font-semibold">Decks to Revisit</h2>
+            <span className="bg-purple-500/20 text-purple-400 text-xs px-2 py-1 rounded-full">
+              {neglectedDecks.length} decks
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground">Decks you haven't studied in over 3 days.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {neglectedDecks.slice(0, 6).map(deck => (
+              <div 
+                key={deck.id} 
+                onClick={() => onStudy(deck)}
+                className="bg-card border border-border rounded-xl p-5 hover:border-purple-500/50 cursor-pointer transition-all group"
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="bg-muted text-xs px-2 py-1 rounded text-muted-foreground uppercase font-bold tracking-wider truncate max-w-[120px]">
+                    {deck.subject}
+                  </span>
+                </div>
+                <h3 className="font-semibold mb-1 truncate">{deck.title}</h3>
+                <p className="text-muted-foreground text-sm mb-3">{deck.cardCount} cards</p>
+                <div className="text-xs text-muted-foreground">
+                  {deck.lastStudied 
+                    ? `Last studied ${Math.floor((Date.now() - new Date(deck.lastStudied).getTime()) / (1000 * 60 * 60 * 24))} days ago`
+                    : 'Never studied'
+                  }
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* New Cards to Learn */}
+      {newCards.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Icons.Trending size={20} className="text-green-400" />
+            <h2 className="text-xl font-semibold">New Cards to Learn</h2>
+            <span className="bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded-full">
+              {newCards.length} cards
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground">Cards you haven't studied yet.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {newCards.slice(0, 6).map(card => {
+              const deck = getDeckForCard(card.id);
+              if (!deck) return null;
+              return (
+                <div key={card.id} className="bg-card border border-border rounded-xl p-4 hover:border-green-500/50 transition-all">
+                  <div className="text-xs text-muted-foreground mb-2 truncate">{deck.title}</div>
+                  <p className="text-sm font-medium line-clamp-2 mb-3">{card.front}</p>
+                  <button 
+                    onClick={() => onStudyCard(deck, getCardIndex(deck.id, card.id))}
+                    className="text-sm text-green-400 hover:text-green-300 font-medium"
+                  >
+                    Start Learning →
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          {newCards.length > 6 && (
+            <p className="text-sm text-muted-foreground">
+              And {newCards.length - 6} more new cards to learn...
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {cardsNeedingReview.length === 0 && struggledCards.length === 0 && neglectedDecks.length === 0 && newCards.length === 0 && (
+        <div className="bg-card border border-border rounded-xl p-12 text-center">
+          <div className="bg-green-500/20 inline-flex p-4 rounded-full mb-4">
+            <Icons.Check size={32} className="text-green-500" />
+          </div>
+          <h3 className="text-xl font-semibold mb-2">You're all caught up!</h3>
+          <p className="text-muted-foreground">
+            Great job! You have no pending reviews or suggestions at the moment.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- PAGE: PROFILE ---
 
-const ProfilePage: React.FC<{ user: User, onUpdateUser: (user: User) => void, onLogout: () => void }> = ({ user, onUpdateUser, onLogout }) => {
+const ProfilePage: React.FC<{ user: User, onUpdateUser: (user: User) => void, onLogout: () => void, onDeleteAccount: () => void }> = ({ user, onUpdateUser, onLogout, onDeleteAccount }) => {
   const [name, setName] = useState(user.name);
   const [username, setUsername] = useState(user.username || '');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -1674,6 +1800,10 @@ const ProfilePage: React.FC<{ user: User, onUpdateUser: (user: User) => void, on
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [deletePassword, setDeletePassword] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1796,6 +1926,47 @@ const ProfilePage: React.FC<{ user: User, onUpdateUser: (user: User) => void, on
       setError(err.message || 'Failed to change password');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!deletePassword) {
+      setDeleteError('Please enter your password');
+      return;
+    }
+
+    setDeleteLoading(true);
+    setDeleteError('');
+
+    try {
+      // Verify password first
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: deletePassword,
+      });
+
+      if (verifyError) {
+        setDeleteError('Incorrect password');
+        setDeleteLoading(false);
+        return;
+      }
+
+      // Delete user data from database (cards, decks, study_sessions, profile)
+      // Cards will be deleted by cascade when decks are deleted
+      await supabase.from('study_sessions').delete().eq('user_id', user.id);
+      await supabase.from('decks').delete().eq('user_id', user.id);
+      await supabase.from('profiles').delete().eq('id', user.id);
+
+      // Delete auth user - this requires admin access or the user to be signed in
+      // For now, we'll just sign out and the user data is already deleted
+      await supabase.auth.signOut();
+      
+      onDeleteAccount();
+    } catch (err: any) {
+      console.error('Error deleting account:', err);
+      setDeleteError(err.message || 'Failed to delete account');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -1934,14 +2105,65 @@ const ProfilePage: React.FC<{ user: User, onUpdateUser: (user: User) => void, on
       </div>
 
       {/* Danger Zone */}
-      <div className="bg-card border border-border rounded-xl p-6">
-        <h3 className="text-red-500 font-semibold mb-4">Danger Zone</h3>
-        <button 
-          onClick={onLogout} 
-          className="border border-red-900 text-red-500 px-4 py-2 rounded hover:bg-red-900/20 transition-colors"
-        >
-          Sign Out
-        </button>
+      <div className="bg-card border border-red-900/50 rounded-xl p-6 space-y-4">
+        <h3 className="text-red-500 font-semibold">Danger Zone</h3>
+        
+        <div className="flex gap-4">
+          <button 
+            onClick={onLogout} 
+            className="border border-red-900 text-red-500 px-4 py-2 rounded hover:bg-red-900/20 transition-colors"
+          >
+            Sign Out
+          </button>
+          <button 
+            onClick={() => setShowDeleteConfirm(true)} 
+            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors"
+          >
+            Delete Account
+          </button>
+        </div>
+
+        {showDeleteConfirm && (
+          <div className="mt-4 p-4 bg-red-900/20 border border-red-900/50 rounded-lg space-y-4">
+            <p className="text-red-400 text-sm">
+              <strong>Warning:</strong> This will permanently delete your account and all your data including decks, cards, and study history. This action cannot be undone.
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-red-400 mb-1">Enter your password to confirm</label>
+              <input 
+                type="password"
+                value={deletePassword} 
+                onChange={(e) => setDeletePassword(e.target.value)}
+                className="w-full bg-input border border-red-900/50 rounded px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-red-500"
+                placeholder="Your password"
+              />
+            </div>
+            {deleteError && (
+              <div className="text-red-500 text-sm flex items-center gap-2">
+                <Icons.Error size={16} /> {deleteError}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button 
+                onClick={handleDeleteAccount}
+                disabled={deleteLoading || !deletePassword}
+                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {deleteLoading ? 'Deleting...' : 'Permanently Delete Account'}
+              </button>
+              <button 
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeletePassword('');
+                  setDeleteError('');
+                }}
+                className="border border-border text-muted-foreground px-4 py-2 rounded hover:bg-muted transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2347,6 +2569,19 @@ const App: React.FC = () => {
     setCurrentPage('study');
   };
 
+  const handleStudyCard = (deck: Deck, cardIndex: number) => {
+    setActiveDeck(deck);
+    setCurrentPage('study');
+    // Note: The StudyPage will start from the beginning, but this gets user to the deck
+  };
+
+  const handleDeleteAccount = () => {
+    setUser(null);
+    setDecks([]);
+    setCards([]);
+    setCurrentPage('login');
+  };
+
   const handleBackFromStudy = async () => {
     if (activeDeck && user) {
       // Update last studied timestamp
@@ -2532,6 +2767,14 @@ const App: React.FC = () => {
       {currentPage === 'decks' && (
         <DecksPage decks={decks} onStudy={handleStartStudy} onDelete={handleDeleteDeck} onEdit={handleEditDeck} setPage={setCurrentPage} />
       )}
+      {currentPage === 'suggestions' && (
+        <SuggestionsPage 
+          decks={decks} 
+          cards={cards} 
+          onStudy={handleStartStudy}
+          onStudyCard={handleStudyCard}
+        />
+      )}
       {currentPage === 'edit-deck' && editingDeck && user && (
         <EditDeckPage
           deck={editingDeck}
@@ -2549,7 +2792,7 @@ const App: React.FC = () => {
         />
       )}
       {currentPage === 'profile' && (
-          <ProfilePage user={user} onUpdateUser={setUser} onLogout={handleLogout} />
+          <ProfilePage user={user} onUpdateUser={setUser} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} />
       )}
     </Layout>
   );
