@@ -5,7 +5,7 @@ import { generateFlashcardsFromTopic } from './services/geminiService';
 import { calculateSm2, getNextReviewDate, formatInterval } from './utils/srs';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { supabase } from './src/lib/supabase';
-import { getProfile, getDecks, createDeck, updateDeck, deleteDeck, getCardsByUser, createCards, updateCard, updateDeckCardCount, getUserEmailByUsername, isUsernameAvailable, updateProfile, getWeeklyActivity } from './src/lib/db';
+import { getProfile, getDecks, createDeck, updateDeck, deleteDeck, getCardsByUser, createCards, updateCard, deleteCard, updateDeckCardCount, getUserEmailByUsername, isUsernameAvailable, updateProfile, getWeeklyActivity, getCards } from './src/lib/db';
 import { uploadProfilePicture } from './src/lib/storage';
 
 // --- MOCK DATA REMOVED ---
@@ -824,6 +824,330 @@ const DeckBuilderPage: React.FC<{ onAddDeck: (d: Omit<Deck, 'id' | 'created'>, c
   );
 };
 
+// --- PAGE: EDIT DECK ---
+
+const EditDeckPage: React.FC<{ 
+  deck: Deck, 
+  cards: Card[],
+  onUpdateDeck: (deckId: string, updates: Partial<Deck>) => Promise<void>,
+  onUpdateCard: (cardId: string, updates: Partial<Card>) => Promise<void>,
+  onDeleteCard: (cardId: string) => Promise<void>,
+  onAddCards: (cards: Omit<Card, 'id'>[]) => Promise<void>,
+  setPage: (p: string) => void 
+}> = ({ deck, cards, onUpdateDeck, onUpdateCard, onDeleteCard, onAddCards, setPage }) => {
+  const [title, setTitle] = useState(deck.title);
+  const [subject, setSubject] = useState(deck.subject);
+  const [existingCards, setExistingCards] = useState<Card[]>(cards);
+  const [editingCardId, setEditingCardId] = useState<string | null>(null);
+  const [editingCardFront, setEditingCardFront] = useState('');
+  const [editingCardBack, setEditingCardBack] = useState('');
+  
+  // New card inputs
+  const [newCardFront, setNewCardFront] = useState('');
+  const [newCardBack, setNewCardBack] = useState('');
+  const [newCardDifficulty, setNewCardDifficulty] = useState<'Easy' | 'Medium' | 'Hard'>('Medium');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setExistingCards(cards);
+  }, [cards]);
+
+  const startEditCard = (card: Card) => {
+    setEditingCardId(card.id);
+    setEditingCardFront(card.front);
+    setEditingCardBack(card.back);
+  };
+
+  const cancelEditCard = () => {
+    setEditingCardId(null);
+    setEditingCardFront('');
+    setEditingCardBack('');
+  };
+
+  const saveEditCard = async () => {
+    if (!editingCardId || !editingCardFront.trim() || !editingCardBack.trim()) return;
+    
+    setLoading(true);
+    try {
+      await onUpdateCard(editingCardId, {
+        front: editingCardFront.trim(),
+        back: editingCardBack.trim(),
+      });
+      setExistingCards(prev => prev.map(c => 
+        c.id === editingCardId 
+          ? { ...c, front: editingCardFront.trim(), back: editingCardBack.trim() }
+          : c
+      ));
+      cancelEditCard();
+    } catch (err) {
+      setError('Failed to update card');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteCard = async (cardId: string) => {
+    if (!window.confirm('Are you sure you want to delete this card?')) return;
+    
+    setLoading(true);
+    try {
+      await onDeleteCard(cardId);
+      setExistingCards(prev => prev.filter(c => c.id !== cardId));
+    } catch (err) {
+      setError('Failed to delete card');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addNewCard = async () => {
+    if (!newCardFront.trim() || !newCardBack.trim()) return;
+
+    setLoading(true);
+    try {
+      // Preset SRS values based on initial difficulty selection
+      let interval = 0;
+      let easeFactor = 2.5;
+      let repetitions = 0;
+      let status: Card['status'] = 'new';
+
+      if (newCardDifficulty === 'Easy') {
+        interval = 4;
+        repetitions = 1;
+        easeFactor = 2.7;
+        status = 'learning';
+      } else if (newCardDifficulty === 'Medium') {
+        interval = 1;
+        repetitions = 0;
+        easeFactor = 2.5;
+      } else { // Hard
+        interval = 0;
+        repetitions = 0;
+        easeFactor = 2.3;
+      }
+
+      const newCard: Omit<Card, 'id'> = {
+        deckId: deck.id,
+        type: 'qa' as const,
+        front: newCardFront.trim(),
+        back: newCardBack.trim(),
+        status: status,
+        interval: interval,
+        repetitions: repetitions,
+        easeFactor: easeFactor
+      };
+
+      await onAddCards([newCard]);
+      setNewCardFront('');
+      setNewCardBack('');
+      setNewCardDifficulty('Medium');
+      // Cards will be reloaded by parent component
+    } catch (err) {
+      setError('Failed to add card');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveDeckChanges = async () => {
+    if (!title.trim() || !subject.trim()) {
+      setError('Title and subject are required');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    try {
+      await onUpdateDeck(deck.id, {
+        title: title.trim(),
+        subject: subject.trim(),
+      });
+      setPage('decks');
+    } catch (err) {
+      setError('Failed to save deck changes');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Edit Deck</h1>
+          <p className="text-muted-foreground">Modify your flashcard deck.</p>
+        </div>
+        <button
+          onClick={() => setPage('decks')}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <Icons.Close size={24} />
+        </button>
+      </div>
+
+      {error && (
+        <div className="text-red-500 text-sm bg-red-500/10 p-3 rounded-lg flex items-center gap-2">
+          <Icons.Error size={16} /> {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-4">
+          <div className="bg-card border border-border p-6 rounded-xl space-y-4">
+            <h3 className="font-semibold text-lg">Deck Details</h3>
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Title</label>
+              <input 
+                value={title} 
+                onChange={e => setTitle(e.target.value)}
+                className="w-full bg-input border border-border rounded px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-white"
+                placeholder="e.g., React Basics"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Subject</label>
+              <input 
+                value={subject} 
+                onChange={e => setSubject(e.target.value)}
+                className="w-full bg-input border border-border rounded px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-white"
+                placeholder="e.g., Programming"
+              />
+            </div>
+            <button
+              onClick={saveDeckChanges}
+              disabled={loading || !title.trim() || !subject.trim()}
+              className="w-full bg-white text-black font-bold py-2 rounded hover:bg-gray-200 transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Saving...' : 'Save Deck Changes'}
+            </button>
+          </div>
+
+          <div className="bg-card border border-border p-6 rounded-xl space-y-4">
+            <h3 className="font-semibold text-lg">Add New Card</h3>
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Question (Front)</label>
+              <textarea 
+                value={newCardFront} 
+                onChange={e => setNewCardFront(e.target.value)}
+                className="w-full bg-input border border-border rounded px-3 py-2 text-white min-h-[80px] focus:outline-none focus:ring-1 focus:ring-white"
+                placeholder="What is a component?"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Answer (Back)</label>
+              <textarea 
+                value={newCardBack} 
+                onChange={e => setNewCardBack(e.target.value)}
+                className="w-full bg-input border border-border rounded px-3 py-2 text-white min-h-[80px] focus:outline-none focus:ring-1 focus:ring-white"
+                placeholder="A reusable UI element..."
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Initial Difficulty</label>
+              <select 
+                value={newCardDifficulty} 
+                onChange={(e) => setNewCardDifficulty(e.target.value as any)}
+                className="w-full bg-input border border-border rounded px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-white"
+              >
+                <option value="Easy">Easy</option>
+                <option value="Medium">Medium</option>
+                <option value="Hard">Hard</option>
+              </select>
+            </div>
+            <button 
+              onClick={addNewCard}
+              disabled={loading || !newCardFront.trim() || !newCardBack.trim()}
+              className="w-full bg-white text-black font-bold py-2 rounded hover:bg-gray-200 transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Adding...' : 'Add Card'}
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="font-semibold text-lg">Cards ({existingCards.length})</h3>
+          </div>
+          
+          <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+            {existingCards.length === 0 && (
+              <div className="text-center py-10 text-muted-foreground border border-dashed border-border rounded-xl">
+                No cards in this deck.
+              </div>
+            )}
+            {existingCards.map((card) => (
+              <div key={card.id} className="bg-card border border-border p-4 rounded-lg relative group">
+                {editingCardId === card.id ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Question</label>
+                      <textarea
+                        value={editingCardFront}
+                        onChange={e => setEditingCardFront(e.target.value)}
+                        className="w-full bg-input border border-border rounded px-2 py-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white"
+                        rows={2}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Answer</label>
+                      <textarea
+                        value={editingCardBack}
+                        onChange={e => setEditingCardBack(e.target.value)}
+                        className="w-full bg-input border border-border rounded px-2 py-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white"
+                        rows={2}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={saveEditCard}
+                        disabled={loading || !editingCardFront.trim() || !editingCardBack.trim()}
+                        className="flex-1 bg-green-600 text-white text-xs font-bold py-1.5 rounded hover:bg-green-700 transition-colors disabled:opacity-50"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={cancelEditCard}
+                        className="flex-1 bg-muted text-white text-xs font-bold py-1.5 rounded hover:bg-gray-700 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <button 
+                      onClick={() => handleDeleteCard(card.id)} 
+                      className="absolute top-2 right-2 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Icons.Delete size={16} />
+                    </button>
+                    <button
+                      onClick={() => startEditCard(card)}
+                      className="absolute top-2 right-8 text-muted-foreground hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Edit card"
+                    >
+                      <Icons.Edit size={16} />
+                    </button>
+                    <div className="mb-2">
+                      <span className="text-xs text-muted-foreground uppercase">Q:</span>
+                      <p className="text-sm line-clamp-2">{card.front}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground uppercase">A:</span>
+                      <p className="text-sm text-muted-foreground line-clamp-2">{card.back}</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- PAGE: UPLOADS ---
 
 const UploadsPage: React.FC<{ onAddDeck: (d: Omit<Deck, 'id' | 'created'>, c: Omit<Card, 'id'>[]) => Promise<void> }> = ({ onAddDeck }) => {
@@ -986,7 +1310,13 @@ const UploadsPage: React.FC<{ onAddDeck: (d: Omit<Deck, 'id' | 'created'>, c: Om
 
 // --- PAGE: DECKS ---
 
-const DecksPage: React.FC<{ decks: Deck[], onStudy: (d: Deck) => void, onDelete: (id: string) => void, setPage: (p: string) => void }> = ({ decks, onStudy, onDelete, setPage }) => {
+const DecksPage: React.FC<{ 
+  decks: Deck[], 
+  onStudy: (d: Deck) => void, 
+  onDelete: (id: string) => void, 
+  onEdit: (d: Deck) => void,
+  setPage: (p: string) => void 
+}> = ({ decks, onStudy, onDelete, onEdit, setPage }) => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -1016,8 +1346,19 @@ const DecksPage: React.FC<{ decks: Deck[], onStudy: (d: Deck) => void, onDelete:
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {decks.map(deck => (
               <div key={deck.id} className="bg-card border border-border rounded-xl p-5 hover:border-gray-600 transition-all group relative">
-                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                     <button onClick={(e) => { e.stopPropagation(); onDelete(deck.id); }} className="text-muted-foreground hover:text-destructive">
+                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                     <button 
+                       onClick={(e) => { e.stopPropagation(); onEdit(deck); }} 
+                       className="text-muted-foreground hover:text-blue-400"
+                       title="Edit deck"
+                     >
+                        <Icons.Edit size={18} />
+                     </button>
+                     <button 
+                       onClick={(e) => { e.stopPropagation(); onDelete(deck.id); }} 
+                       className="text-muted-foreground hover:text-destructive"
+                       title="Delete deck"
+                     >
                         <Icons.Delete size={18} />
                      </button>
                 </div>
@@ -1747,6 +2088,7 @@ const App: React.FC = () => {
   const [decks, setDecks] = useState<Deck[]>(INITIAL_DECKS);
   const [cards, setCards] = useState<Card[]>(INITIAL_CARDS);
   const [activeDeck, setActiveDeck] = useState<Deck | null>(null);
+  const [editingDeck, setEditingDeck] = useState<Deck | null>(null);
   const [loading, setLoading] = useState(true);
   const [showResetPassword, setShowResetPassword] = useState(false);
 
@@ -2027,6 +2369,91 @@ const App: React.FC = () => {
     }
   };
 
+  const handleEditDeck = async (deck: Deck) => {
+    setEditingDeck(deck);
+    // Reload cards for this deck to ensure we have the latest data
+    const deckCards = await getCards(deck.id);
+    setCards(prev => {
+      // Remove old cards for this deck and add new ones
+      const otherCards = prev.filter(c => c.deckId !== deck.id);
+      return [...otherCards, ...deckCards];
+    });
+    setCurrentPage('edit-deck');
+  };
+
+  const handleUpdateDeck = async (deckId: string, updates: Partial<Deck>) => {
+    try {
+      const updatedDeck = await updateDeck(deckId, updates);
+      if (updatedDeck) {
+        setDecks(prev => prev.map(d => d.id === deckId ? updatedDeck : d));
+        if (editingDeck?.id === deckId) {
+          setEditingDeck(updatedDeck);
+        }
+      }
+    } catch (error) {
+      console.error('Error updating deck:', error);
+      throw error;
+    }
+  };
+
+  const handleUpdateCardInEdit = async (cardId: string, updates: Partial<Card>) => {
+    try {
+      const savedCard = await updateCard(cardId, updates);
+      if (savedCard) {
+        setCards(prev => prev.map(c => c.id === cardId ? savedCard : c));
+      }
+    } catch (error) {
+      console.error('Error updating card:', error);
+      throw error;
+    }
+  };
+
+  const handleDeleteCardInEdit = async (cardId: string) => {
+    try {
+      const success = await deleteCard(cardId);
+      if (success) {
+        setCards(prev => prev.filter(c => c.id !== cardId));
+        if (editingDeck) {
+          await updateDeckCardCount(editingDeck.id);
+          // Reload deck to get updated card count
+          const updatedDeck = await getDecks(user!.id).then(decks => decks.find(d => d.id === editingDeck.id));
+          if (updatedDeck) {
+            setEditingDeck(updatedDeck);
+            setDecks(prev => prev.map(d => d.id === editingDeck.id ? updatedDeck : d));
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting card:', error);
+      throw error;
+    }
+  };
+
+  const handleAddCardsToDeck = async (newCards: Omit<Card, 'id'>[]) => {
+    try {
+      const createdCards = await createCards(newCards);
+      setCards(prev => [...createdCards, ...prev]);
+      if (editingDeck) {
+        await updateDeckCardCount(editingDeck.id);
+        // Reload deck to get updated card count
+        const updatedDeck = await getDecks(user!.id).then(decks => decks.find(d => d.id === editingDeck.id));
+        if (updatedDeck) {
+          setEditingDeck(updatedDeck);
+          setDecks(prev => prev.map(d => d.id === editingDeck.id ? updatedDeck : d));
+        }
+        // Reload cards for the deck to ensure we have all cards
+        const deckCards = await getCards(editingDeck.id);
+        setCards(prev => {
+          const otherCards = prev.filter(c => c.deckId !== editingDeck.id);
+          return [...otherCards, ...deckCards];
+        });
+      }
+    } catch (error) {
+      console.error('Error adding cards:', error);
+      throw error;
+    }
+  };
+
   // Routing logic
   if (loading) {
     return (
@@ -2103,7 +2530,23 @@ const App: React.FC = () => {
         <DeckBuilderPage onAddDeck={handleAddDeck} setPage={setCurrentPage} />
       )}
       {currentPage === 'decks' && (
-        <DecksPage decks={decks} onStudy={handleStartStudy} onDelete={handleDeleteDeck} setPage={setCurrentPage} />
+        <DecksPage decks={decks} onStudy={handleStartStudy} onDelete={handleDeleteDeck} onEdit={handleEditDeck} setPage={setCurrentPage} />
+      )}
+      {currentPage === 'edit-deck' && editingDeck && user && (
+        <EditDeckPage
+          deck={editingDeck}
+          cards={cards.filter(c => c.deckId === editingDeck.id)}
+          onUpdateDeck={handleUpdateDeck}
+          onUpdateCard={handleUpdateCardInEdit}
+          onDeleteCard={handleDeleteCardInEdit}
+          onAddCards={handleAddCardsToDeck}
+          setPage={(page) => {
+            setCurrentPage(page);
+            if (page !== 'edit-deck') {
+              setEditingDeck(null);
+            }
+          }}
+        />
       )}
       {currentPage === 'profile' && (
           <ProfilePage user={user} onUpdateUser={setUser} onLogout={handleLogout} />

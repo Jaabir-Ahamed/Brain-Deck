@@ -385,6 +385,20 @@ export const updateCard = async (cardId: string, updates: Partial<Card>): Promis
   };
 };
 
+export const deleteCard = async (cardId: string): Promise<boolean> => {
+  const { error } = await supabase
+    .from('cards')
+    .delete()
+    .eq('id', cardId);
+
+  if (error) {
+    console.error('Error deleting card:', error);
+    return false;
+  }
+
+  return true;
+};
+
 export const updateDeckCardCount = async (deckId: string): Promise<void> => {
   const { count, error: countError } = await supabase
     .from('cards')

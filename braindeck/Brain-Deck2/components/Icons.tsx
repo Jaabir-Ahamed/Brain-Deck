@@ -18,7 +18,8 @@ import {
   Menu,
   X,
   ChevronRight,
-  BrainCircuit
+  BrainCircuit,
+  Pencil
 } from 'lucide-react';
 
 export const Icons = {
@@ -40,5 +41,6 @@ export const Icons = {
   Menu: Menu,
   Close: X,
   ChevronRight: ChevronRight,
-  Logo: BrainCircuit
+  Logo: BrainCircuit,
+  Edit: Pencil
 };
