@@ -32,14 +32,11 @@ In the Vercel project settings, go to **Settings** → **Environment Variables**
 VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 VITE_GEMINI_API_KEY=your-gemini-api-key
-VITE_APP_URL=https://your-project.vercel.app
 ```
 
 **Important Notes:**
 - All variables MUST start with `VITE_` prefix
 - Add them for all environments (Production, Preview, Development)
-- `VITE_APP_URL` should be your Vercel deployment URL (e.g., `https://your-project.vercel.app`)
-- This URL is used for email confirmation and password reset redirects
 - Never commit these values to git
 
 ### How to Get Values:
@@ -53,26 +50,13 @@ VITE_APP_URL=https://your-project.vercel.app
    - Go to https://aistudio.google.com/app/apikey
    - Copy your API key → `VITE_GEMINI_API_KEY`
 
-3. **App URL**:
-   - After your first deployment, copy your Vercel deployment URL
-   - Add it as `VITE_APP_URL` (e.g., `https://your-project.vercel.app`)
-   - This ensures email confirmation links point to your deployed app, not localhost
-
-## Step 4: Configure Supabase Redirect URLs
-
-After deploying, configure Supabase to allow redirects to your app:
-
-1. Go to Supabase Dashboard → **Authentication** → **URL Configuration**
-2. Set **Site URL** to your Vercel deployment URL (e.g., `https://your-project.vercel.app`)
-3. Add your deployment URL to **Redirect URLs**
-
-## Step 5: Deploy
+## Step 4: Deploy
 
 1. Click **Deploy** in Vercel
 2. Wait for the build to complete
 3. Your app will be live at `your-project.vercel.app`
 
-## Step 6: Verify Database Migration
+## Step 5: Verify Database Migration
 
 After deployment, make sure your Supabase database migration has been run:
 

@@ -141,10 +141,8 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
       }
 
       try {
-        // Use VITE_APP_URL if set (for production), otherwise use current origin (for local dev)
-        const redirectUrl = import.meta.env.VITE_APP_URL || window.location.origin;
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${redirectUrl}/reset-password`,
+          redirectTo: `${window.location.origin}`,
         });
 
         if (resetError) {
@@ -228,9 +226,6 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
         }
         
         // Sign up with Supabase (still use email for auth, but store username)
-        // Use VITE_APP_URL if set (for production), otherwise use current origin (for local dev)
-        const redirectUrl = import.meta.env.VITE_APP_URL || window.location.origin;
-        
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email,
           password,
@@ -239,7 +234,7 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
               name: name,
               username: username,
             },
-            emailRedirectTo: redirectUrl,
+            emailRedirectTo: window.location.origin,
           },
         });
 
@@ -248,16 +243,8 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
         // Check if email confirmation is required
         if (authData.user && !authData.session) {
           // Email confirmation is enabled - user needs to confirm email
-          // Clear all form fields
-          setUsername('');
-          setEmail('');
-          setPassword('');
-          setName('');
-          // Show success message and switch to login mode
-          setSuccess('Account created! Please check your email to confirm your account, then try logging in.');
-          setError('');
+          setError('Account created! Please check your email to confirm your account, then try logging in.');
           setMode('login'); // Switch to login mode
-          setLoading(false);
           return;
         }
 
@@ -428,8 +415,8 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
           )}
 
           {success && (
-            <div className="text-blue-400 text-sm bg-blue-500/10 border border-blue-500/20 p-3 rounded-lg flex items-center gap-2">
-              <Icons.SearchCheck size={16} /> {success}
+            <div className="text-green-500 text-sm bg-green-500/10 p-3 rounded-lg flex items-center gap-2">
+              <Icons.Check size={16} /> {success}
             </div>
           )}
 
@@ -1614,6 +1601,139 @@ const ProfilePage: React.FC<{ user: User, onUpdateUser: (user: User) => void, on
   );
 };
 
+// --- PAGE: RESET PASSWORD (from email link) ---
+
+const ResetPasswordPage: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (!newPassword || !confirmPassword) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      setSuccess(true);
+      
+      // Sign out after password reset so user can log in with new password
+      await supabase.auth.signOut();
+      
+      // Clear the URL hash
+      window.history.replaceState(null, '', window.location.pathname);
+      
+      // Redirect to login after a short delay
+      setTimeout(() => {
+        onComplete();
+      }, 2000);
+    } catch (err: any) {
+      console.error('Error resetting password:', err);
+      setError(err.message || 'Failed to reset password. The link may have expired.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="w-full max-w-md space-y-8 text-center">
+          <div className="flex flex-col items-center">
+            <div className="bg-green-500/20 text-green-500 p-4 rounded-full mb-4">
+              <Icons.Check size={48} />
+            </div>
+            <h2 className="text-3xl font-bold text-foreground">Password Reset!</h2>
+            <p className="mt-2 text-muted-foreground">
+              Your password has been successfully updated. Redirecting to login...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md space-y-8">
+        <div className="flex flex-col items-center">
+          <div className="bg-white text-black p-4 rounded-2xl mb-4">
+            <Icons.Logo size={48} />
+          </div>
+          <h2 className="text-3xl font-bold text-foreground">Reset Password</h2>
+          <p className="mt-2 text-muted-foreground text-center">
+            Enter your new password below.
+          </p>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="bg-card border border-border p-8 rounded-xl shadow-xl space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-2">New Password</label>
+            <input 
+              type="password" 
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full bg-input border border-border rounded-lg px-4 py-3 text-foreground focus:ring-2 focus:ring-white focus:outline-none transition-all"
+              placeholder="••••••••"
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-2">Confirm New Password</label>
+            <input 
+              type="password" 
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full bg-input border border-border rounded-lg px-4 py-3 text-foreground focus:ring-2 focus:ring-white focus:outline-none transition-all"
+              placeholder="••••••••"
+            />
+          </div>
+
+          {error && (
+            <div className="text-red-500 text-sm bg-red-500/10 p-3 rounded-lg flex items-center gap-2">
+              <Icons.Error size={16} /> {error}
+            </div>
+          )}
+
+          <button 
+            type="submit"
+            disabled={loading}
+            className="w-full bg-white text-black font-bold py-3 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Updating...' : 'Update Password'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 // --- MAIN APP CONTROLLER ---
 
 const App: React.FC = () => {
@@ -1623,6 +1743,7 @@ const App: React.FC = () => {
   const [cards, setCards] = useState<Card[]>(INITIAL_CARDS);
   const [activeDeck, setActiveDeck] = useState<Deck | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showResetPassword, setShowResetPassword] = useState(false);
 
   // Check for existing session and load user data
   useEffect(() => {
@@ -1640,12 +1761,48 @@ const App: React.FC = () => {
           return;
         }
 
-        // Handle email confirmation callback from URL hash
+        // Handle auth callback from URL hash (email confirmation or password reset)
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const type = hashParams.get('type');
         const accessToken = hashParams.get('access_token');
         const refreshToken = hashParams.get('refresh_token');
         
+        // Handle password reset (recovery) flow
+        if (type === 'recovery' && accessToken) {
+          try {
+            // Set the session from the recovery token so user can update password
+            const { error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || '',
+            });
+            
+            if (sessionError) {
+              console.error('Error setting recovery session:', sessionError);
+              // Clear the hash and redirect to login
+              window.history.replaceState(null, '', window.location.pathname);
+              if (isMounted) {
+                setLoading(false);
+              }
+              return;
+            }
+            
+            // Show the reset password page
+            if (isMounted) {
+              setShowResetPassword(true);
+              setLoading(false);
+            }
+            return;
+          } catch (error) {
+            console.error('Error handling password reset:', error);
+            window.history.replaceState(null, '', window.location.pathname);
+            if (isMounted) {
+              setLoading(false);
+            }
+            return;
+          }
+        }
+        
+        // Handle email confirmation flow
         if (type === 'email' && accessToken) {
           try {
             // Exchange the access token for a session to confirm the email
@@ -1881,6 +2038,19 @@ const App: React.FC = () => {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
   const isSupabaseConfigured = !!(supabaseUrl && supabaseKey);
+
+  // Show reset password page if user came from recovery email
+  if (showResetPassword) {
+    return (
+      <ResetPasswordPage 
+        onComplete={() => {
+          setShowResetPassword(false);
+          setUser(null);
+          setCurrentPage('login');
+        }} 
+      />
+    );
+  }
 
   if (!user) {
     return (
