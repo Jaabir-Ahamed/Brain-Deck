@@ -206,10 +206,13 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
           return;
         }
         
+        // Normalize username to lowercase for consistency
+        const normalizedUsername = username.toLowerCase().trim();
+        
         // Check if username is available
         try {
-          console.log('Checking username availability during signup:', username);
-          const usernameAvailable = await isUsernameAvailable(username);
+          console.log('Checking username availability during signup:', normalizedUsername);
+          const usernameAvailable = await isUsernameAvailable(normalizedUsername);
           console.log('Username available result:', usernameAvailable);
           
           if (!usernameAvailable) {
@@ -225,14 +228,14 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
           return;
         }
         
-        // Sign up with Supabase (still use email for auth, but store username)
+        // Sign up with Supabase (still use email for auth, but store username as lowercase)
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: {
               name: name,
-              username: username,
+              username: normalizedUsername,
             },
             emailRedirectTo: window.location.origin,
           },
@@ -269,7 +272,7 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
                   id: authData.user.id,
                   email: authData.user.email || email,
                   name: name,
-                  username: username,
+                  username: normalizedUsername,
                 })
                 .select()
                 .single();
@@ -294,7 +297,9 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
         }
       } else {
         // Sign in with username - lookup email first
-        const userEmail = await getUserEmailByUsername(username);
+        // Normalize username to lowercase for consistent lookup
+        const normalizedUsername = username.toLowerCase().trim();
+        const userEmail = await getUserEmailByUsername(normalizedUsername);
         if (!userEmail) {
           setError('Username not found. Please check your username or sign up.');
           setLoading(false);
@@ -392,7 +397,7 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
                 <input 
                   type="text" 
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
                   className="w-full bg-input border border-border rounded-lg px-4 py-3 text-foreground focus:ring-2 focus:ring-white focus:outline-none transition-all"
                   placeholder={mode === 'login' ? 'your_username' : 'choose_a_username'}
                 />
