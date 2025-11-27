@@ -3,11 +3,15 @@ import type { Subject, Deck, Card, Upload, Suggestion } from "./types"
 import { mockSubjects, mockDecks, mockCards, mockUploads, mockSuggestions } from "./mock-data"
 
 interface AppStore {
+  user: { id: string; email: string; name: string } | null
   subjects: Subject[]
   decks: Deck[]
   cards: Card[]
   uploads: Upload[]
   suggestions: Suggestion[]
+
+  // Auth actions
+  setUser: (user: { id: string; email: string; name: string } | null) => void
 
   // Subject actions
   addSubject: (name: string) => void
@@ -36,11 +40,14 @@ interface AppStore {
 }
 
 export const useAppStore = create<AppStore>((set) => ({
+  user: null, // No user by default - shows landing page
   subjects: mockSubjects,
   decks: mockDecks,
   cards: mockCards,
   uploads: mockUploads,
   suggestions: mockSuggestions,
+
+  setUser: (user) => set({ user }),
 
   addSubject: (name) =>
     set((state) => ({
