@@ -9,8 +9,17 @@ import { Card, CardContent } from "@/components/ui/card"
 import { mockActivity } from "@/lib/mock-data"
 import { Zap, BookOpen, Lightbulb, Flame } from "lucide-react"
 import { toast } from "sonner"
+import LandingPage from "@/components/landing-page"
 
 export default function HomePage() {
+  const { user } = useAppStore()
+
+  // Show landing page if user is not authenticated
+  if (!user) {
+    return <LandingPage />
+  }
+
+  // Show dashboard if user is authenticated
   const { decks, cards } = useAppStore()
 
   const dueToday = decks.reduce((sum, deck) => sum + deck.dueToday, 0)

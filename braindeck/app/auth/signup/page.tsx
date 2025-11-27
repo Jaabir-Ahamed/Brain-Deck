@@ -9,9 +9,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BookOpen } from "lucide-react"
+import { useAppStore } from "@/lib/store"
 
 export default function SignUpPage() {
   const router = useRouter()
+  const { setUser } = useAppStore()
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -29,7 +31,14 @@ export default function SignUpPage() {
     setLoading(true)
     await new Promise((resolve) => setTimeout(resolve, 500))
 
-    toast.success("Account created successfully (mock)")
+    // Set user in store
+    setUser({
+      id: `user-${Date.now()}`,
+      email: email,
+      name: name
+    })
+
+    toast.success("Account created successfully")
     router.push("/")
     setLoading(false)
   }

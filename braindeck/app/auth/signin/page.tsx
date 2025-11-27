@@ -9,9 +9,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BookOpen } from "lucide-react"
+import { useAppStore } from "@/lib/store"
 
 export default function SignInPage() {
   const router = useRouter()
+  const { setUser } = useAppStore()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
@@ -23,7 +25,14 @@ export default function SignInPage() {
     // Simulate auth delay
     await new Promise((resolve) => setTimeout(resolve, 500))
 
-    toast.success("Signed in successfully (mock)")
+    // Set user in store
+    setUser({
+      id: "user-1",
+      email: email,
+      name: email.split("@")[0] || "User"
+    })
+
+    toast.success("Signed in successfully")
     router.push("/")
     setLoading(false)
   }

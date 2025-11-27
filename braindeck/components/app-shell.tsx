@@ -3,11 +3,12 @@
 import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Home, BookOpen, Layers, Upload, Lightbulb, User, Menu, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { useAppStore } from "@/lib/store"
 
 const sidebarItems = [
   {
@@ -37,9 +38,16 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname()
+  const router = useRouter()
+  const { setUser } = useAppStore()
   const [open, setOpen] = useState(false)
 
   const isAuthPage = pathname?.startsWith("/auth")
+
+  const handleLogout = () => {
+    setUser(null)
+    router.push("/")
+  }
 
   if (isAuthPage) {
     return <>{children}</>
@@ -84,7 +92,11 @@ export function AppShell({ children }: AppShellProps) {
 
       <div className="p-4 border-t border-border space-y-2">
         <ThemeToggle />
-        <Button variant="ghost" className="w-full justify-start gap-3 text-destructive hover:text-destructive">
+        <Button 
+          variant="ghost" 
+          className="w-full justify-start gap-3 text-destructive hover:text-destructive"
+          onClick={handleLogout}
+        >
           <LogOut className="w-4 h-4" />
           Sign Out
         </Button>
