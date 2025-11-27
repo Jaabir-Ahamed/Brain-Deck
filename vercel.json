@@ -1,7 +1,6 @@
 {
-  "buildCommand": "cd braindeck && npm install && npm run build",
-  "outputDirectory": "braindeck/.next",
-  "installCommand": "cd braindeck && npm install",
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
   "framework": "nextjs",
   "rootDirectory": "braindeck"
 }
