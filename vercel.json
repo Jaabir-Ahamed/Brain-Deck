@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd braindeck && npm install && npm run build",
-  "installCommand": "cd braindeck && npm install",
+  "buildCommand": "cd braindeck && npm install --legacy-peer-deps && npm run build",
+  "installCommand": "cd braindeck && npm install --legacy-peer-deps",
   "framework": "nextjs"
 }
