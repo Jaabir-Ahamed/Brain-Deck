@@ -206,13 +206,13 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
           return;
         }
         
-        // Normalize username to lowercase for consistency
-        const normalizedUsername = username.toLowerCase().trim();
+        // Trim username and check availability (case-insensitive check)
+        const trimmedUsername = username.trim();
         
-        // Check if username is available
+        // Check if username is available (case-insensitive)
         try {
-          console.log('Checking username availability during signup:', normalizedUsername);
-          const usernameAvailable = await isUsernameAvailable(normalizedUsername);
+          console.log('Checking username availability during signup:', trimmedUsername);
+          const usernameAvailable = await isUsernameAvailable(trimmedUsername);
           console.log('Username available result:', usernameAvailable);
           
           if (!usernameAvailable) {
@@ -228,14 +228,14 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
           return;
         }
         
-        // Sign up with Supabase (still use email for auth, but store username as lowercase)
+        // Sign up with Supabase (store username with original case)
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: {
               name: name,
-              username: normalizedUsername,
+              username: trimmedUsername,
             },
             emailRedirectTo: window.location.origin,
           },
@@ -272,7 +272,7 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
                   id: authData.user.id,
                   email: authData.user.email || email,
                   name: name,
-                  username: normalizedUsername,
+                  username: trimmedUsername,
                 })
                 .select()
                 .single();
@@ -296,10 +296,9 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
           }
         }
       } else {
-        // Sign in with username - lookup email first
-        // Normalize username to lowercase for consistent lookup
-        const normalizedUsername = username.toLowerCase().trim();
-        const userEmail = await getUserEmailByUsername(normalizedUsername);
+        // Sign in with username - lookup email first (case-insensitive lookup)
+        const trimmedUsername = username.trim();
+        const userEmail = await getUserEmailByUsername(trimmedUsername);
         if (!userEmail) {
           setError('Username not found. Please check your username or sign up.');
           setLoading(false);
@@ -397,7 +396,7 @@ const AuthPage: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
                 <input 
                   type="text" 
                   value={username}
-                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                  onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
                   className="w-full bg-input border border-border rounded-lg px-4 py-3 text-foreground focus:ring-2 focus:ring-white focus:outline-none transition-all"
                   placeholder={mode === 'login' ? 'your_username' : 'choose_a_username'}
                 />
@@ -635,19 +634,17 @@ const Dashboard: React.FC<{ decks: Deck[], user: User, setPage: (p: string) => v
 const DeckBuilderPage: React.FC<{ onAddDeck: (d: Omit<Deck, 'id' | 'created'>, c: Omit<Card, 'id'>[]) => Promise<void>, setPage: (p: string) => void }> = ({ onAddDeck, setPage }) => {
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('');
-  const [draftCards, setDraftCards] = useState<{front: string, back: string, difficulty: 'Easy' | 'Medium' | 'Hard'}[]>([]);
+  const [draftCards, setDraftCards] = useState<{front: string, back: string}[]>([]);
   
   // Current card inputs
   const [front, setFront] = useState('');
   const [back, setBack] = useState('');
-  const [difficulty, setDifficulty] = useState<'Easy' | 'Medium' | 'Hard'>('Medium');
 
   const addCard = () => {
     if (!front.trim() || !back.trim()) return;
-    setDraftCards([...draftCards, { front, back, difficulty }]);
+    setDraftCards([...draftCards, { front, back }]);
     setFront('');
     setBack('');
-    setDifficulty('Medium');
   };
 
   const removeCard = (index: number) => {
@@ -664,36 +661,16 @@ const DeckBuilderPage: React.FC<{ onAddDeck: (d: Omit<Deck, 'id' | 'created'>, c
     };
 
     const newCards: Omit<Card, 'id'>[] = draftCards.map((dc) => {
-        // Preset SRS values based on initial difficulty selection
-        let interval = 0;
-        let easeFactor = 2.5;
-        let repetitions = 0;
-        let status: Card['status'] = 'new';
-
-        if (dc.difficulty === 'Easy') {
-            interval = 4;
-            repetitions = 1;
-            easeFactor = 2.7;
-            status = 'learning'; // Slightly advanced
-        } else if (dc.difficulty === 'Medium') {
-            interval = 1;
-            repetitions = 0;
-            easeFactor = 2.5;
-        } else { // Hard
-            interval = 0;
-            repetitions = 0;
-            easeFactor = 2.3;
-        }
-
+        // Default SRS values for new cards
         return {
             deckId: '', // Will be set by onAddDeck
             type: 'qa' as const,
             front: dc.front,
             back: dc.back,
-            status: status,
-            interval: interval,
-            repetitions: repetitions,
-            easeFactor: easeFactor
+            status: 'new' as const,
+            interval: 0,
+            repetitions: 0,
+            easeFactor: 2.5
         };
     });
 
@@ -752,19 +729,6 @@ const DeckBuilderPage: React.FC<{ onAddDeck: (d: Omit<Deck, 'id' | 'created'>, c
                              placeholder="A reusable UI element..."
                           />
                       </div>
-                      <div>
-                          <label className="block text-sm font-medium text-muted-foreground mb-1">Initial Difficulty</label>
-                          <select 
-                            value={difficulty} 
-                            onChange={(e) => setDifficulty(e.target.value as any)}
-                            className="w-full bg-input border border-border rounded px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-white"
-                          >
-                              <option value="Easy">Easy</option>
-                              <option value="Medium">Medium</option>
-                              <option value="Hard">Hard</option>
-                          </select>
-                          <p className="text-xs text-muted-foreground mt-1">Sets how soon this card appears for review.</p>
-                      </div>
                       <button 
                         onClick={addCard}
                         disabled={!front.trim() || !back.trim()}
@@ -798,15 +762,6 @@ const DeckBuilderPage: React.FC<{ onAddDeck: (d: Omit<Deck, 'id' | 'created'>, c
                               <button onClick={() => removeCard(idx)} className="absolute top-2 right-2 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
                                   <Icons.Close size={16} />
                               </button>
-                              <div className="mb-2">
-                                  <span className={`text-xs font-bold px-2 py-0.5 rounded ${
-                                      card.difficulty === 'Easy' ? 'bg-green-900 text-green-300' : 
-                                      card.difficulty === 'Hard' ? 'bg-orange-900 text-orange-300' : 
-                                      'bg-blue-900 text-blue-300'
-                                  }`}>
-                                      {card.difficulty}
-                                  </span>
-                              </div>
                               <div className="mb-2">
                                   <span className="text-xs text-muted-foreground uppercase">Q:</span>
                                   <p className="text-sm line-clamp-2">{card.front}</p>
@@ -845,7 +800,6 @@ const EditDeckPage: React.FC<{
   // New card inputs
   const [newCardFront, setNewCardFront] = useState('');
   const [newCardBack, setNewCardBack] = useState('');
-  const [newCardDifficulty, setNewCardDifficulty] = useState<'Easy' | 'Medium' | 'Hard'>('Medium');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -906,42 +860,20 @@ const EditDeckPage: React.FC<{
 
     setLoading(true);
     try {
-      // Preset SRS values based on initial difficulty selection
-      let interval = 0;
-      let easeFactor = 2.5;
-      let repetitions = 0;
-      let status: Card['status'] = 'new';
-
-      if (newCardDifficulty === 'Easy') {
-        interval = 4;
-        repetitions = 1;
-        easeFactor = 2.7;
-        status = 'learning';
-      } else if (newCardDifficulty === 'Medium') {
-        interval = 1;
-        repetitions = 0;
-        easeFactor = 2.5;
-      } else { // Hard
-        interval = 0;
-        repetitions = 0;
-        easeFactor = 2.3;
-      }
-
       const newCard: Omit<Card, 'id'> = {
         deckId: deck.id,
         type: 'qa' as const,
         front: newCardFront.trim(),
         back: newCardBack.trim(),
-        status: status,
-        interval: interval,
-        repetitions: repetitions,
-        easeFactor: easeFactor
+        status: 'new' as const,
+        interval: 0,
+        repetitions: 0,
+        easeFactor: 2.5
       };
 
       await onAddCards([newCard]);
       setNewCardFront('');
       setNewCardBack('');
-      setNewCardDifficulty('Medium');
       // Cards will be reloaded by parent component
     } catch (err) {
       setError('Failed to add card');
@@ -1042,18 +974,6 @@ const EditDeckPage: React.FC<{
                 className="w-full bg-input border border-border rounded px-3 py-2 text-white min-h-[80px] focus:outline-none focus:ring-1 focus:ring-white"
                 placeholder="A reusable UI element..."
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-1">Initial Difficulty</label>
-              <select 
-                value={newCardDifficulty} 
-                onChange={(e) => setNewCardDifficulty(e.target.value as any)}
-                className="w-full bg-input border border-border rounded px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-white"
-              >
-                <option value="Easy">Easy</option>
-                <option value="Medium">Medium</option>
-                <option value="Hard">Hard</option>
-              </select>
             </div>
             <button 
               onClick={addNewCard}
@@ -1852,7 +1772,7 @@ const ProfilePage: React.FC<{ user: User, onUpdateUser: (user: User) => void, on
           <label className="block text-sm font-medium text-muted-foreground mb-1">Username</label>
           <input 
             value={username} 
-            onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+            onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
             className="w-full bg-input border border-border rounded px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-white"
             placeholder="your_username"
           />
